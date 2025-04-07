@@ -1,5 +1,0 @@
-govuk_integrations.admin:
-  title: 'GOV.UK Integrations'
-  description: 'Configure how your site integrates with GOV.UK services.'
-  route_name: govuk_integrations.admin
-  parent: system.admin_config

@@ -1,0 +1,5 @@
+govuk_pay.general_settings_form:
+  route_name: govuk_pay.general_settings_form
+  title: 'GOV.UK Pay'
+  description: 'Controls settings for the module GOV.UK Pay'
+  parent: system.admin_config_services

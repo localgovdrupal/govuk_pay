@@ -1,8 +1,0 @@
-name: 'GOV.UK Integrations Pay Webform'
-type: module
-description: 'Provides a Webform element integrating with the GOV.UK Pay payment service.'
-package: 'GOV.UK Integrations'
-core_version_requirement: ^9 || ^10
-dependencies:
-  - 'govuk_integrations_pay:govuk_integrations_pay'
-  - 'webform:webform'

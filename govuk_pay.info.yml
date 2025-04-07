@@ -1,0 +1,5 @@
+name: 'GOV.UK Pay'
+type: module
+description: 'Provides basic integration with the GOV.UK Pay payment service.'
+package: 'GOV.UK'
+core_version_requirement: ^9 || ^10

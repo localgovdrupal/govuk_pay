@@ -1,5 +1,0 @@
-govuk_integrations_notify_email.form:
-  title: 'Email settings'
-  description: 'GOV UK Notify settings for email sending'
-  route_name: govuk_integrations_notify_email.form
-  parent: govuk_integrations.admin

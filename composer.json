@@ -1,23 +1,30 @@
 {
-    "name": "drupal/gov_uk",
-    "description": "GOV.UK Integrations with assorted GOV.UK services.",
+    "name": "drupal/govuk_pay",
+    "description": "Provides integration with GOV.UK Pay for Drupal.",
     "type": "drupal-module",
-    "homepage": "https://drupal.org/project/gov_uk",
+    "homepage": "https://drupal.org/project/govuk_pay",
     "authors": [
         {
             "name": "Martin King",
             "role": "Developer",
             "email": "martin.king@webcurl.co.uk"
+        },
+        {
+            "name": "Greenwich",
+            "role": "Maintainer"
         }
     ],
-    "license": "GPL-2.0+",
+    "license": "MIT",
     "minimum-stability": "dev",
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/tanc/govuk-pay-client-php"
+        }
+    ],
     "require": {
-        "alphagov/notifications-php-client":"*",
-        "php-http/guzzle7-adapter":"*",
-        "drupal/mobile_number":"*",
-        "drupal/smsframework":"*",
-        "drupal/tfa":">=1.0-alpha4",
-        "drupal/webform":"*"
+        "tanc/govuk-pay-client-php": "1.0.3",
+        "php-http/guzzle6-adapter": "*",
+        "drupal/webform": "*"
     }
 }

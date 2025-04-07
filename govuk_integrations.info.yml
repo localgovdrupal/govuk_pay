@@ -1,5 +1,0 @@
-name: 'GOV.UK Integrations'
-type: module
-description: 'Provides integration with assorted GOV.UK services.'
-package: 'GOV.UK Integrations'
-core_version_requirement: ^9 || ^10

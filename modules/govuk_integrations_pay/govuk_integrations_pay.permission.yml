@@ -1,3 +1,0 @@
-administer govukpayment entity:
-  title: 'Administer GOV.UK Payment entity'
-  restrict access: TRUE

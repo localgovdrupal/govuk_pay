@@ -1,5 +1,0 @@
-govuk_integrations_notify_email.template_add_form:
-  route_name: entity.govuk_integrations_notify_email.add_form
-  title: 'Add new template'
-  appears_on:
-    - govuk_integrations_notify_email.template_list

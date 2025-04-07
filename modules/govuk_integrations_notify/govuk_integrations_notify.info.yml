@@ -1,8 +1,0 @@
-name: 'GOV.UK Integrations Notify'
-type: module
-description: 'Provides basic integration with the GOV.UK Notify service.'
-package: 'GOV.UK Integrations'
-core_version_requirement: ^9 || ^10
-dependencies:
- - mobile_number (>=2.0.0-alpha5)
- - 'govuk_integrations:govuk_integrations'

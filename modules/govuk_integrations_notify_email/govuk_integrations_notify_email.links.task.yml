@@ -1,8 +1,0 @@
-govuk_integrations_notify_email.templates:
-  route_name: govuk_integrations_notify_email.template_list
-  base_route: govuk_integrations_notify_email.template_list
-  title: 'Templates'
-govuk_integrations_notify_email.settings:
-  route_name: govuk_integrations_notify_email.form
-  base_route: govuk_integrations_notify_email.template_list
-  title: 'Settings'
