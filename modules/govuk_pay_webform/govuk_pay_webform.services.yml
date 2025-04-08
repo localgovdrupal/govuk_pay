@@ -1,0 +1,10 @@
+services:
+  govuk_pay_webform.payment_service:
+    class: Drupal\govuk_pay_webform\GovUkPayWebformService
+    arguments:
+      - '@config.factory'
+      - '@govuk_pay.api_service'
+      - '@uuid'
+      - '@request_stack'
+      - '@entity_type.manager'
+      - '@logger.factory'

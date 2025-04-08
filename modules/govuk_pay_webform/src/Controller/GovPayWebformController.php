@@ -4,22 +4,15 @@ namespace Drupal\govuk_pay_webform\Controller;
 
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\webform\Entity\Webform;
-use Drupal\govuk_pay\Entity\GovUkPayment;
-use Drupal\govuk_pay\ApiService;
+use Drupal\govuk_pay_webform\GovUkPayWebformService;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Component\Render\FormattableMarkup;
 
 /**
  * Page controller for displaying GOV.UK Pay content on behalf of Webform.
  */
 class GovPayWebformController extends ControllerBase {
-
-  /**
-   * The GOV.UK Pay API service.
-   *
-   * @var \Drupal\govuk_pay\ApiService
-   */
-  protected $apiService;
 
   /**
    * The entity type manager.
@@ -29,16 +22,26 @@ class GovPayWebformController extends ControllerBase {
   protected $entityTypeManager;
 
   /**
+   * The GOV.UK Pay Webform service.
+   *
+   * @var \Drupal\govuk_pay_webform\GovUkPayWebformService
+   */
+  protected $paymentService;
+
+  /**
    * Constructs a new GovPayWebformController object.
    *
-   * @param \Drupal\govuk_pay\ApiService $api_service
-   *   The GOV.UK Pay API service.
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
    *   The entity type manager.
+   * @param \Drupal\govuk_pay_webform\GovUkPayWebformService $payment_service
+   *   The GOV.UK Pay Webform service.
    */
-  public function __construct(ApiService $api_service, EntityTypeManagerInterface $entity_type_manager) {
-    $this->apiService = $api_service;
+  public function __construct(
+    EntityTypeManagerInterface $entity_type_manager,
+    GovUkPayWebformService $payment_service,
+  ) {
     $this->entityTypeManager = $entity_type_manager;
+    $this->paymentService = $payment_service;
   }
 
   /**
@@ -46,41 +49,9 @@ class GovPayWebformController extends ControllerBase {
    */
   public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('govuk_pay.api_service'),
-      $container->get('entity_type.manager')
+      $container->get('entity_type.manager'),
+      $container->get('govuk_pay_webform.payment_service')
     );
-  }
-
-  /**
-   * Retrieve onsite record of a gov_payment.
-   *
-   * @param string $uuid
-   *   UUID of payment.
-   * @param int $webform_id
-   *   Optional Webform ID of payment.
-   * @param int $submission_id
-   *   Optional Submission ID of payment.
-   *
-   * @return array
-   *   Return loaded gov_payment entities.
-   */
-  private function fetchLocalPaymentRecord($uuid, $webform_id, $submission_id) {
-    $return = [];
-
-    // Initial Query.
-    $query = $this->entityTypeManager->getStorage('govukpayment')->getQuery();
-
-    $query->condition('uuid', $uuid);
-    $query->condition('webform_id', $webform_id);
-    $query->condition('submission_id', $submission_id);
-    $query->accessCheck(FALSE);
-    $result = $query->execute();
-
-    if (!empty($result)) {
-      $return = GovUkPayment::loadMultiple($result);
-    }
-
-    return $return;
   }
 
   /**
@@ -97,61 +68,50 @@ class GovPayWebformController extends ControllerBase {
    *   Render array.
    */
   public function confirmationPage($uuid, $webform_id = NULL, $submission_id = NULL) {
-    // Base variables to return.
-    $paymentId = NULL;
-    $amount = NULL;
-    $paymentStatus = NULL;
-    $paymentMessage = NULL;
-    $confirmationMessage = NULL;
+    // Default render array with empty values.
+    $data = [
+      '#theme' => 'govuk_pay_webform__govuk_confirmation_page',
+      '#payment_id' => NULL,
+      '#payment_amount' => NULL,
+      '#payment_status' => NULL,
+      '#payment_message' => NULL,
+      '#confirmation_message' => NULL,
+    ];
 
-    // Find GOV.UK Pay element.
-    $webform = Webform::load($webform_id);
     // Get the confirmation message from the GovPayHandler configuration.
-    $handlers = $webform->getHandlers();
-    foreach ($handlers as $handler) {
-      if ($handler->getPluginId() === 'govuk_pay') {
-        $configuration = $handler->getConfiguration();
-        $confirmationMessage = $configuration['settings']['confirmation_message'] ?? NULL;
-        break;
+    $webform = Webform::load($webform_id);
+    if ($webform) {
+      foreach ($webform->getHandlers() as $handler) {
+        if ($handler->getPluginId() === 'govuk_pay') {
+          $configuration = $handler->getConfiguration();
+          $confirmation_message = $configuration['settings']['confirmation_message'] ? $configuration['settings']['confirmation_message'] : NULL;
+          if ($confirmation_message) {
+            $data['#confirmation_message'] = new FormattableMarkup($confirmation_message, []);
+          }
+          break;
+        }
       }
     }
 
     // Provide default confirmation message if empty.
-    if (is_null($confirmationMessage)) {
-      $confirmationMessage = $this->t('Thank you for making a payment via GOV.UK Pay.<br/>
+    if (empty($data['#confirmation_message'])) {
+      $default_message = $this->t('Thank you for making a payment via GOV.UK Pay.<br/>
         If your payment has not shown as complete for over 1 day, 
         please contact us with your payment ID.
       ');
+      $data['#confirmation_message'] = new FormattableMarkup($default_message, []);
     }
 
-    // Fetch on-site payment record.
-    $fetchPayment = $this->fetchLocalPaymentRecord($uuid, $webform_id, $submission_id);
+    // Fetch payment details using the service.
+    $payment_details = $this->paymentService->getPaymentDetails($uuid, $webform_id, $submission_id);
 
-    // Ensure only 1 payment matches.
-    if (count($fetchPayment) === 1) {
-      // Fetch GOV.UK Pay payment.
-      $paymentObject = $fetchPayment[array_keys($fetchPayment)[0]];
-      $paymentId = $paymentObject->get('payment_id')->getValue()[0]['value'];
+    // Set payment details in the render array.
+    $data['#payment_id'] = $payment_details['payment_id'];
+    $data['#payment_amount'] = $payment_details['amount'];
+    $data['#payment_status'] = $payment_details['status'];
+    $data['#payment_message'] = $payment_details['message'];
 
-      $api_record = $this->apiService->getPayment($paymentId);
-
-      // Set Status & Message.
-      $state = $api_record->getState();
-      $paymentStatus = $state ? $state->getStatus() : 'Status not found.';
-      $paymentMessage = $state ? $state->getMessage() : '';
-      $amount = $api_record->getAmount() ?
-        '£' . number_format(floatval($api_record->getAmount()) / 100, 2) :
-        $this->t('Payment not found');
-    }
-
-    return [
-      '#theme' => 'govuk_pay_webform__govuk_confirmation_page',
-      '#payment_id' => $paymentId,
-      '#payment_amount' => $amount,
-      '#payment_status' => $paymentStatus,
-      '#payment_message' => $paymentMessage,
-      '#confirmation_message' => $confirmationMessage,
-    ];
+    return $data;
   }
 
 }
