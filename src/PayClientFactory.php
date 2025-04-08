@@ -63,24 +63,6 @@ class PayClientFactory {
   }
 
   /**
-   * For backward compatibility with existing code.
-   *
-   * @param \GuzzleHttp\ClientInterface $http_client
-   *   The HTTP client to use.
-   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
-   *   The config factory to use.
-   *
-   * @return \Swagger\Client\Api\CardPaymentsApi
-   *   The created CardPaymentsApi instance.
-   *
-   * @deprecated in govuk_pay:1.0.0 and is removed from govuk_pay:2.0.0. Use createCardPaymentsApi() instead.
-   * @see \Drupal\govuk_pay\PayClientFactory::createCardPaymentsApi()
-   */
-  public static function create(ClientInterface $http_client, ConfigFactoryInterface $config_factory) {
-    return self::createCardPaymentsApi($http_client, $config_factory);
-  }
-
-  /**
    * Create a Configuration instance with API key from Drupal config.
    *
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory

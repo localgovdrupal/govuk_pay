@@ -106,22 +106,19 @@ class GovPayWebformController extends ControllerBase {
 
     // Find GOV.UK Pay element.
     $webform = Webform::load($webform_id);
-    $elements = $webform->getElementsInitialized();
-    $govPayElement = NULL;
-    foreach ($elements as $element) {
-      if ($element['#type'] === 'webform_govuk_pay') {
-        $govPayElement = $element;
+    // Get the confirmation message from the GovPayHandler configuration.
+    $handlers = $webform->getHandlers();
+    foreach ($handlers as $handler) {
+      if ($handler->getPluginId() === 'govuk_pay') {
+        $configuration = $handler->getConfiguration();
+        $confirmationMessage = $configuration['settings']['confirmation_message'] ?? NULL;
         break;
       }
     }
 
-    // Fetch GOV.UK Pay values out of element.
-    $confirmationMessage = $govPayElement['#confirmation_message'] ?? NULL;
-
     // Provide default confirmation message if empty.
     if (is_null($confirmationMessage)) {
-      $confirmationMessage = $this->t('
-        Thank you for making a payment via GOV.UK Pay.<br/>
+      $confirmationMessage = $this->t('Thank you for making a payment via GOV.UK Pay.<br/>
         If your payment has not shown as complete for over 1 day, 
         please contact us with your payment ID.
       ');
@@ -136,7 +133,6 @@ class GovPayWebformController extends ControllerBase {
       $paymentObject = $fetchPayment[array_keys($fetchPayment)[0]];
       $paymentId = $paymentObject->get('payment_id')->getValue()[0]['value'];
 
-      // Use the injected API service.
       $api_record = $this->apiService->getPayment($paymentId);
 
       // Set Status & Message.
