@@ -23,8 +23,6 @@
         }
     ],
     "require": {
-        "tanc/govuk-pay-client-php": "1.0.3",
-        "php-http/guzzle6-adapter": "*",
-        "drupal/webform": "*"
+        "tanc/govuk-pay-client-php": "1.0.3"
     }
 }
