@@ -2,6 +2,7 @@
 
 namespace Drupal\govuk_pay\Entity;
 
+use Drupal\user\EntityOwnerTrait;
 use Drupal\govuk_pay\GovUkPaymentInterface;
 use Drupal\Core\Field\BaseFieldDefinition;
 use Drupal\Core\Entity\EntityTypeInterface;
@@ -13,11 +14,20 @@ use Drupal\Core\Entity\ContentEntityBase;
  * Defines the GovUkPayment entity.
  *
  * @ContentEntityType(
- *   id = "content_entity_govukpayment",
+ *   id = "govukpayment",
  *   label = @Translation("GOV.UK Payment"),
  *   base_table = "govukpayment",
  *   admin_permission = "administer govukpayment entity",
  *   fieldable = FALSE,
+ *   handlers = {
+ *     "access" = "Drupal\govuk_pay\GovUkPaymentAccessControlHandler",
+ *     "views_data" = "Drupal\views\EntityViewsData",
+ *     "form" = {
+ *       "default" = "Drupal\Core\Entity\ContentEntityForm",
+ *       "delete" = "Drupal\Core\Entity\ContentEntityDeleteForm",
+ *     },
+ *   },
+ *   permission_granularity = "entity_type",
  *   entity_keys = {
  *     "id" = "id",
  *     "payment_id" = "payment_id",
@@ -26,6 +36,8 @@ use Drupal\Core\Entity\ContentEntityBase;
  *     "submission_id" = "submission_id",
  *     "status" = "status",
  *     "amount" = "amount",
+ *     "uid" = "uid",
+ *     "owner" = "uid",
  *   },
  *   config_export = {
  *     "id",
@@ -35,6 +47,7 @@ use Drupal\Core\Entity\ContentEntityBase;
  *     "submission_id",
  *     "status",
  *     "amount",
+ *     "uid",
  *   }
  * )
  */
@@ -42,17 +55,18 @@ class GovUkPayment extends ContentEntityBase implements GovUkPaymentInterface {
 
   // Implements methods defined by EntityChangedInterface.
   use EntityChangedTrait;
+  use EntityOwnerTrait;
 
   /**
    * {@inheritdoc}
    *
-   * When a new entity instance is added, set the user_id entity reference to
+   * When a new entity instance is added, set the uid entity reference to
    * the current user as the creator of the instance.
    */
   public static function preCreate(EntityStorageInterface $storage_controller, array &$values) {
     parent::preCreate($storage_controller, $values);
     $values += [
-      'user_id' => \Drupal::currentUser()->id(),
+      'uid' => \Drupal::currentUser()->id(),
     ];
   }
 
@@ -74,6 +88,8 @@ class GovUkPayment extends ContentEntityBase implements GovUkPaymentInterface {
    * in the GUI. The behaviour of the widgets used can be determined here.
    */
   public static function baseFieldDefinitions(EntityTypeInterface $entity_type) {
+    $fields = parent::baseFieldDefinitions($entity_type);
+    $fields += static::ownerBaseFieldDefinitions($entity_type);
 
     // Standard field, used as unique if primary index.
     $fields['id'] = BaseFieldDefinition::create('integer')

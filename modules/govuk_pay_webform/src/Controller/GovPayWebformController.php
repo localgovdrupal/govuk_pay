@@ -2,14 +2,54 @@
 
 namespace Drupal\govuk_pay_webform\Controller;
 
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use Drupal\webform\Entity\Webform;
 use Drupal\govuk_pay\Entity\GovUkPayment;
+use Drupal\govuk_pay\ApiService;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Controller\ControllerBase;
 
 /**
  * Page controller for displaying GOV.UK Pay content on behalf of Webform.
  */
 class GovPayWebformController extends ControllerBase {
+
+  /**
+   * The GOV.UK Pay API service.
+   *
+   * @var \Drupal\govuk_pay\ApiService
+   */
+  protected $apiService;
+
+  /**
+   * The entity type manager.
+   *
+   * @var \Drupal\Core\Entity\EntityTypeManagerInterface
+   */
+  protected $entityTypeManager;
+
+  /**
+   * Constructs a new GovPayWebformController object.
+   *
+   * @param \Drupal\govuk_pay\ApiService $api_service
+   *   The GOV.UK Pay API service.
+   * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
+   *   The entity type manager.
+   */
+  public function __construct(ApiService $api_service, EntityTypeManagerInterface $entity_type_manager) {
+    $this->apiService = $api_service;
+    $this->entityTypeManager = $entity_type_manager;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container) {
+    return new static(
+      $container->get('govuk_pay.api_service'),
+      $container->get('entity_type.manager')
+    );
+  }
 
   /**
    * Retrieve onsite record of a gov_payment.
@@ -28,12 +68,12 @@ class GovPayWebformController extends ControllerBase {
     $return = [];
 
     // Initial Query.
-    $query = \Drupal::entityQuery('content_entity_govukpayment');
+    $query = $this->entityTypeManager->getStorage('govukpayment')->getQuery();
 
-    // Duplication of access controls(?)
     $query->condition('uuid', $uuid);
     $query->condition('webform_id', $webform_id);
     $query->condition('submission_id', $submission_id);
+    $query->accessCheck(FALSE);
     $result = $query->execute();
 
     if (!empty($result)) {
@@ -69,7 +109,7 @@ class GovPayWebformController extends ControllerBase {
     $elements = $webform->getElementsInitialized();
     $govPayElement = NULL;
     foreach ($elements as $element) {
-      if ($element['#type'] === 'webform_govuk_integrations_pay') {
+      if ($element['#type'] === 'webform_govuk_pay') {
         $govPayElement = $element;
         break;
       }
@@ -92,26 +132,24 @@ class GovPayWebformController extends ControllerBase {
 
     // Ensure only 1 payment matches.
     if (count($fetchPayment) === 1) {
-
       // Fetch GOV.UK Pay payment.
       $paymentObject = $fetchPayment[array_keys($fetchPayment)[0]];
       $paymentId = $paymentObject->get('payment_id')->getValue()[0]['value'];
 
-      $pay_client = \Drupal::service('govuk_integrations_pay.api_service');
-      $api_record = $pay_client->getPayment($paymentId);
+      // Use the injected API service.
+      $api_record = $this->apiService->getPayment($paymentId);
 
       // Set Status & Message.
-      $paymentStatus = $api_record->state->status ??
-        'Status not found.';
-      $paymentMessage = $api_record->state->message ??
-        '';
-      $amount = isset($api_record->amount) ?
-        '£' . number_format(floatval($api_record->amount) / 100, 2) :
+      $state = $api_record->getState();
+      $paymentStatus = $state ? $state->getStatus() : 'Status not found.';
+      $paymentMessage = $state ? $state->getMessage() : '';
+      $amount = $api_record->getAmount() ?
+        '£' . number_format(floatval($api_record->getAmount()) / 100, 2) :
         $this->t('Payment not found');
     }
 
     return [
-      '#theme' => 'govuk_integrations_pay_webform__govuk_confirmation_page',
+      '#theme' => 'govuk_pay_webform__govuk_confirmation_page',
       '#payment_id' => $paymentId,
       '#payment_amount' => $amount,
       '#payment_status' => $paymentStatus,

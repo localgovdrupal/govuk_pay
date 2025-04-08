@@ -1,5 +1,10 @@
 services:
   govuk_pay.access_checker:
     class: Drupal\govuk_pay\Access\GovUKPaymentAccess
+    arguments: ['@entity_type.manager', '@request_stack', '@current_user']
     tags:
       - { name: access_check, applies_to: _govukpayment_access_check }
+  
+  govuk_pay.api_service:
+    class: Drupal\govuk_pay\ApiService
+    arguments: ['@http_client', '@config.factory']

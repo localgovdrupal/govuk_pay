@@ -2,6 +2,7 @@
 
 namespace Drupal\govuk_pay_webform\Plugin\WebformHandler;
 
+use Symfony\Component\DependencyInjection\ContainerInterface;
 use GuzzleHttp\Psr7\Uri;
 use Drupal\webform\WebformSubmissionInterface;
 use Drupal\webform\Plugin\WebformHandlerBase;
@@ -11,6 +12,10 @@ use Drupal\Core\Routing\TrustedRedirectResponse;
 use Drupal\Core\Form\FormStateInterface;
 
 /**
+ * GOV.UK Pay webform handler.
+ *
+ * Provides a webform handler to redirect to GOV.UK Pay to handle payment.
+ *
  * @WebformHandler(
  *   id = "govuk_pay",
  *   label = @Translation("GOV.UK Pay"),
@@ -22,6 +27,46 @@ use Drupal\Core\Form\FormStateInterface;
  *   )
  */
 class GovPayHandler extends WebformHandlerBase {
+
+  /**
+   * The config factory.
+   *
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
+   */
+  protected $configFactory;
+
+  /**
+   * The GOV.UK Pay API service.
+   *
+   * @var \Drupal\govuk_pay\ApiService
+   */
+  protected $apiService;
+
+  /**
+   * The UUID service.
+   *
+   * @var \Drupal\Core\Uuid\UuidInterface
+   */
+  protected $uuidService;
+
+  /**
+   * The request stack.
+   *
+   * @var \Symfony\Component\HttpFoundation\RequestStack
+   */
+  protected $requestStack;
+
+  /**
+   * {@inheritdoc}
+   */
+  public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
+    $instance = parent::create($container, $configuration, $plugin_id, $plugin_definition);
+    $instance->configFactory = $container->get('config.factory');
+    $instance->apiService = $container->get('govuk_pay.api_service');
+    $instance->uuidService = $container->get('uuid');
+    $instance->requestStack = $container->get('request_stack');
+    return $instance;
+  }
 
   /**
    * {@inheritDoc}
@@ -114,8 +159,8 @@ class GovPayHandler extends WebformHandlerBase {
     $form['amount']['amount_static'] = [
       '#type' => 'textfield',
       '#attributes' => [
-        ' type' => 'number',
-        ' min' => 1,
+        'type' => 'number',
+        'min' => 1,
       ],
       '#title' => $this->t('Amount'),
       '#description' => $this->t('Choose the amount that a payment will be made for.'),
@@ -135,17 +180,18 @@ class GovPayHandler extends WebformHandlerBase {
       '#title' => $this->t('Messages'),
       '#parents' => ['settings'],
     ];
+
     $form['messages']['payment_message'] = [
-      '#type' => 'textarea',
-      '#title' => $this->t('GOV.UK Pay summary'),
-      '#description' => $this->t('Text to display to user once they are redirected to GOV.UK Pay.'),
-      '#maxlength' => 255,
+      '#type' => 'textfield',
+      '#title' => $this->t('Payment message'),
+      '#description' => $this->t('Text to display to the user on the GOV.UK Pay page.'),
       '#default_value' => $this->configuration['payment_message'],
     ];
+
     $form['messages']['confirmation_message'] = [
       '#type' => 'webform_html_editor',
       '#title' => $this->t('Confirmation message'),
-      '#description' => $this->t('Text to display to user once they return to the site from GOV.UK Pay.'),
+      '#description' => $this->t('Text to display to the user once they return to the site from GOV.UK Pay.'),
       '#default_value' => $this->configuration['confirmation_message'],
     ];
 
@@ -199,79 +245,80 @@ class GovPayHandler extends WebformHandlerBase {
    * {@inheritDoc}
    */
   public function postSave(WebformSubmissionInterface $webform_submission, $update = TRUE) {
+    try {
+      // Load config for GOV.UK Pay.
+      $config = $this->configFactory->get('govuk_pay.settings');
 
-    // Load config for GOV.UK Pay.
-    $config = \Drupal::config('govuk_integrations_pay.settings');
+      // Validate required parameters.
+      if (empty($config->get('gov_pay__reference'))) {
+        throw new \RuntimeException('GOV.UK Pay reference is not configured. This is a required field on /admin/config/govuk_pay/settings');
+      }
+      if (empty($config->get('gov_pay__apikey'))) {
+        throw new \RuntimeException('GOV.UK Pay API key is not configured. This is a required field on /admin/config/govuk_pay/settings');
+      }
 
-    // Fetch Submission ID from submission.
-    $sid = $webform_submission->id();
-    $webform = $webform_submission->getWebform();
+      $sid = $webform_submission->id();
+      $webform = $webform_submission->getWebform();
+      $amount = $this->getAmount($webform_submission);
 
-    $amount = $this->getAmount($webform_submission);
+      if (empty($amount)) {
+        throw new \RuntimeException('Payment amount could not be determined');
+      }
 
-    // Fetch payment message from element.
-    $message = $this->configuration['payment_message'] ?? $webform->label();
+      $message = !empty($this->configuration['payment_message']) ? $this->configuration['payment_message'] : $webform->label();
+      if (strlen($message) > 254) {
+        $message = substr($message, 0, 251) . '...';
+      }
 
-    // Reduce message length (GOV.UK Pay accepts 255 characters max).
-    if (strlen($message) > 254) {
-      $message = substr($message, 0, 251) . '...';
+      $uuid = $this->uuidService->generate();
+      $route_params = [
+        'uuid' => $uuid,
+        'webform_id' => $webform->id(),
+        'submission_id' => $sid,
+      ];
+
+      $url_object = Url::fromRoute('govuk_pay_webform.confirmation_page', $route_params, ['absolute' => TRUE]);
+      $returnUrl = new Uri($url_object->toString());
+
+      try {
+        $payment_response = $this->apiService->createPayment(
+          $amount,
+          $config->get('gov_pay__reference'),
+          $message,
+          $returnUrl
+        );
+
+        $payment = GovUkPayment::create([
+          'payment_id' => $payment_response->getPaymentId(),
+          'amount' => $amount,
+          'uuid' => $uuid,
+          'status' => $payment_response->getState()->getStatus(),
+          'webform_id' => $webform->id(),
+          'submission_id' => $sid,
+        ]);
+        $payment->save();
+
+        $links = $payment_response->getLinks();
+        $nextUrl = isset($links['next_url']) ? $links['next_url']->getHref() : NULL;
+
+        if (!is_null($nextUrl)) {
+          $response = new TrustedRedirectResponse($nextUrl, 302);
+          $request = $this->requestStack->getCurrentRequest();
+          $request->getSession()->save();
+          $response->prepare($request);
+          $response->send();
+          exit;
+        }
+      }
+      catch (\Exception $e) {
+        \Drupal::logger('govuk_pay_webform')->error('Payment creation failed: @error', ['@error' => $e->getMessage()]);
+        throw new \RuntimeException('Payment could not be created: ' . $e->getMessage(), 0, $e);
+      }
     }
-
-    // Generate UUID.
-    $uuidService = \Drupal::service('uuid');
-    $uuid = $uuidService->generate();
-
-    $route_params = [
-      'uuid' => $uuid,
-      'webform_id' => $webform->id(),
-      'submission_id' => $sid,
-    ];
-
-    $url_object = Url::fromRoute('govuk_integrations_pay_webform.confirmation_page', $route_params, ['absolute' => TRUE]);
-    $returnUrl = new Uri($url_object->toString());
-
-    $pay_client = \Drupal::service('govuk_integrations_pay.api_service');
-
-    /** @var \Alphagov\Pay\Response\Payment $payment_response */
-    $payment_response = $pay_client->createPayment($amount, $config->get('gov_pay__reference'), $message, $returnUrl);
-
-    // Setup entity record.
-    $payment = GovUkPayment::create([
-      'payment_id' => $payment_response->payment_id,
-      'amount' => $amount,
-      'uuid' => $uuid,
-      'status' => $payment_response->state->status,
-      'webform_id' => $webform->id(),
-      'submission_id' => $sid,
-    ]);
-    $payment->save();
-
-    // Setup redirect to GOV.UK Pay.
-    $nextUrl = $payment_response->getPaymentPageUrl();
-
-    if (!is_null($nextUrl)) {
-
-      // Redirect code, cribbed from RemotePostWebformHandler()
-      $response = new TrustedRedirectResponse((string) $nextUrl, 302);
-      $request = $this->requestStack->getCurrentRequest();
-      // Save the session so things like messages get saved.
-      $request->getSession()->save();
-      $response->prepare($request);
-      // Make sure to trigger kernel events.
-      $this->kernel->terminate($request, $response);
-      $response->send();
+    catch (\Exception $e) {
+      \Drupal::logger('govuk_pay_webform')->error('Error in GovPayHandler postSave: @error', ['@error' => $e->getMessage()]);
+      throw $e;
     }
-  }
-
-  /**
-   * {@inheritDoc}
-   */
-  public function confirmForm(array &$form, FormStateInterface $form_state, WebformSubmissionInterface $webform_submission) {
-    // @todo Change the autogenerated stub.
-    parent::confirmForm($form, $form_state, $webform_submission);
-
-    // https://drupal.stackexchange.com/questions/245285/page-redirect-in-custom-webformhandlerbase
-    // $form_state->setRedirectUrl();
   }
 
 }

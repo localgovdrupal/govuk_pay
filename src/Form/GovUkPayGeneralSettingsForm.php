@@ -37,16 +37,18 @@ class GovUkPayGeneralSettingsForm extends ConfigFormBase {
 
     $form['settings']['gov_pay__apikey'] = [
       '#title' => 'Active API key',
+      '#required' => TRUE,
       '#type' => 'textfield',
       '#default_value' => $config->get('gov_pay__apikey'),
-      '#description' => t('The API key used for interacting with GOV.UK Pay.'),
+      '#description' => $this->t('The API key used for interacting with GOV.UK Pay.'),
     ];
 
     $form['settings']['gov_pay__reference'] = [
       '#title' => 'Payment reference',
+      '#required' => TRUE,
       '#type' => 'textfield',
       '#default_value' => $config->get('gov_pay__reference'),
-      '#description' => t('The payment reference assigned to all GOV.UK Pay transactions on this site.'),
+      '#description' => $this->t('The payment reference assigned to all GOV.UK Pay transactions on this site.'),
     ];
 
     return parent::buildForm($form, $form_state);
