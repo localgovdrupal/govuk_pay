@@ -1,5 +1,5 @@
 {
-    "name": "drupal/govuk_pay",
+    "name": "localgovdrupal/govuk_pay",
     "description": "Provides integration with GOV.UK Pay for Drupal.",
     "type": "drupal-module",
     "homepage": "https://drupal.org/project/govuk_pay",
@@ -10,11 +10,31 @@
             "email": "martin.king@webcurl.co.uk"
         },
         {
-            "name": "Greenwich",
-            "role": "Maintainer"
+            "name": "Graham Cole",
+            "role": "Developer",
+            "email": "graham.cole@webcurl.co.uk"
+        },
+        {
+            "name": "Tancredi D'Onofrio",
+            "role": "Developer",
+            "email": "tanc.donofrio@royalgreenwich.gov.uk"
+        },
+        {
+            "name": "Pankaj Naug",
+            "role": "Developer",
+            "email": "pankaj.naug@royalgreenwich.gov.uk"
+        },
+        {
+            "name": "Finn Lewis",
+            "role": "Developer",
+            "email": "finn@opencode.uk"
+        },
+        {
+            "name": "Royal Borough of Greenwich",
+            "role": "Sponsor"
         }
     ],
-    "license": "MIT",
+    "license": "GPL-2.0-or-later",
     "minimum-stability": "dev",
     "repositories": [
         {
