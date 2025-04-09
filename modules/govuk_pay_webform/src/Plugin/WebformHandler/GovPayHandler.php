@@ -191,27 +191,28 @@ class GovPayHandler extends WebformHandlerBase {
     $form['messages'] = [
       '#type' => 'fieldset',
       '#title' => $this->t('Messages'),
+      '#description' => $this->t('Messages to display to the user on the GOV.UK Pay page and confirmation page. Token can be used in any of these fields.'),
       '#parents' => ['settings'],
     ];
 
     $form['messages']['payment_for'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Payment for'),
-      '#description' => $this->t('Text to display to the user on the GOV.UK Pay page. Will also show on the receipt email sent from the gateway prefixed with the label "Payment for:". You may use tokens.'),
+      '#description' => $this->t('Text to display to the user on the GOV.UK Pay page. Will also show on the receipt email sent from the gateway prefixed with the label "Payment for:"'),
       '#default_value' => $this->configuration['payment_for'],
     ];
 
     $form['messages']['payment_reference'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Payment reference'),
-      '#description' => $this->t('Will be displayed on the confirmation page and also in the email send from the gateway, prefixed with the label "Reference:". You may use tokens.'),
+      '#description' => $this->t('Will be displayed on the confirmation page and also in the email send from the gateway, prefixed with the label "Reference:"'),
       '#default_value' => $this->configuration['payment_reference'],
     ];
 
     $form['messages']['confirmation_message'] = [
       '#type' => 'webform_html_editor',
       '#title' => $this->t('Confirmation message'),
-      '#description' => $this->t('Additional text to display to the user once they return to the site from GOV.UK Pay. You may use tokens.'),
+      '#description' => $this->t('Additional text to display to the user once they return to the site from GOV.UK Pay.'),
       '#default_value' => $this->configuration['confirmation_message'],
     ];
 
