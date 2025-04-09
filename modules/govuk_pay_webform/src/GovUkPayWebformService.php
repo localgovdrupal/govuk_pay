@@ -9,6 +9,7 @@ use Drupal\govuk_pay\Entity\GovUkPayment;
 use Drupal\govuk_pay\ApiService;
 use Drupal\Core\Utility\Token;
 use Drupal\Core\Url;
+use Drupal\Core\TempStore\PrivateTempStoreFactory;
 use Drupal\Core\Routing\TrustedRedirectResponse;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -63,6 +64,13 @@ class GovUkPayWebformService {
   protected $logger;
 
   /**
+   * The private temp store.
+   *
+   * @var \Drupal\Core\TempStore\PrivateTempStore
+   */
+  protected $tempStore;
+
+  /**
    * The token service.
    *
    * @var \Drupal\Core\Utility\Token
@@ -84,6 +92,8 @@ class GovUkPayWebformService {
    *   The entity type manager.
    * @param \Drupal\Core\Logger\LoggerChannelFactoryInterface $logger_factory
    *   The logger factory.
+   * @param \Drupal\Core\TempStore\PrivateTempStoreFactory $temp_store_factory
+   *   The temp store factory.
    * @param \Drupal\Core\Utility\Token $token
    *   The token service.
    */
@@ -94,6 +104,7 @@ class GovUkPayWebformService {
     RequestStack $request_stack,
     EntityTypeManagerInterface $entity_type_manager,
     LoggerChannelFactoryInterface $logger_factory,
+    PrivateTempStoreFactory $temp_store_factory,
     Token $token,
   ) {
     $this->configFactory = $config_factory;
@@ -102,6 +113,7 @@ class GovUkPayWebformService {
     $this->requestStack = $request_stack;
     $this->entityTypeManager = $entity_type_manager;
     $this->logger = $logger_factory->get('govuk_pay_webform');
+    $this->tempStore = $temp_store_factory->get('govuk_pay_webform');
     $this->token = $token;
   }
 
@@ -148,13 +160,19 @@ class GovUkPayWebformService {
     }
 
     $uuid = $this->uuidService->generate();
-    $route_params = [
+
+    // Create the payment data array to be stored in the session.
+    $payment_data = [
       'uuid' => $uuid,
       'webform_id' => $webform->id(),
       'submission_id' => $sid,
     ];
 
-    $url_object = Url::fromRoute('govuk_pay_webform.confirmation_page', $route_params, ['absolute' => TRUE]);
+    // Store payment data in the session.
+    $this->setPaymentData($payment_data);
+
+    // Create the return URL without parameters.
+    $url_object = Url::fromRoute('govuk_pay_webform.confirmation_page', [], ['absolute' => TRUE]);
     $returnUrl = new Uri($url_object->toString());
 
     // Process payment reference with token replacement.
@@ -194,6 +212,7 @@ class GovUkPayWebformService {
     if (!is_null($nextUrl)) {
       $response = new TrustedRedirectResponse($nextUrl, 302);
       $request = $this->requestStack->getCurrentRequest();
+      // Ensure a session is initialised for anonymous users.
       $request->getSession()->save();
       $response->prepare($request);
       $response->send();
@@ -282,7 +301,8 @@ class GovUkPayWebformService {
    *   Submission ID.
    *
    * @return array
-   *   Payment details array with keys for payment_id,
+   *   Payment details array with keys for
+   *   payment_id,
    *   amount, status, and message.
    */
   public function getPaymentDetails($uuid, $webform_id, $submission_id) {
@@ -330,6 +350,65 @@ class GovUkPayWebformService {
     }
 
     return $details;
+  }
+
+  /**
+   * Store payment data in the session.
+   *
+   * @param array $payment_data
+   *   The payment data to store.
+   */
+  public function setPaymentData(array $payment_data) {
+    try {
+      // Store data in the private temp store with
+      // a 1-hour expiration (default).
+      $this->tempStore->set('payment_data', $payment_data);
+    }
+    catch (\Exception $e) {
+      $this->logger->error(
+        'Error storing payment data in session: @error',
+        ['@error' => $e->getMessage()]
+      );
+    }
+  }
+
+  /**
+   * Retrieve payment data from the session.
+   *
+   * @return array|null
+   *   The payment data array, or NULL if not found.
+   */
+  public function getPaymentData() {
+    try {
+      $data = $this->tempStore->get('payment_data');
+      if (empty($data)) {
+        $this->logger->notice('No payment data found in session.');
+        return NULL;
+      }
+      return $data;
+    }
+    catch (\Exception $e) {
+      $this->logger->error(
+        'Error retrieving payment data from session: @error',
+        ['@error' => $e->getMessage()]
+      );
+      return NULL;
+    }
+  }
+
+  /**
+   * Clear payment data from the session.
+   */
+  public function clearPaymentData() {
+    try {
+      $this->tempStore->delete('payment_data');
+    }
+    catch (\Exception $e) {
+      $this->logger->error(
+        'Error clearing payment data from session: @error',
+        ['@error' => $e->getMessage()]
+      );
+    }
   }
 
   /**
