@@ -3,11 +3,11 @@
 namespace Drupal\govuk_pay_webform\Access;
 
 use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\Core\TempStore\PrivateTempStoreFactory;
 use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\Core\Session\AccountInterface;
 use Drupal\Core\Routing\Access\AccessInterface;
 use Drupal\Core\Access\AccessResult;
-use Drupal\Core\TempStore\PrivateTempStoreFactory;
 
 /**
  * Defines the access control handler for GOV.UK Pay webform confirmation page.
@@ -83,14 +83,7 @@ class GovPayWebformAccess implements AccessInterface {
         ->addCacheTags(['govukpayment']);
     }
 
-    // If user has admin permission, also grant access.
-    if ($account->hasPermission('administer govuk payments')) {
-      return AccessResult::allowed()
-        ->addCacheContexts(['user.permissions'])
-        ->addCacheTags(['govukpayment']);
-    }
-
-    // No valid session data and no admin permission, deny access.
+    // No valid session data, deny access.
     return AccessResult::forbidden('No valid payment session found.');
   }
 

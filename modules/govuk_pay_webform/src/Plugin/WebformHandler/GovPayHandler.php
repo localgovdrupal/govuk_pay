@@ -265,7 +265,6 @@ class GovPayHandler extends WebformHandlerBase {
    */
   public function postSave(WebformSubmissionInterface $webform_submission, $update = TRUE) {
     try {
-      // Use the injected payment service instead of the static service call.
       $this->paymentService->createPayment($webform_submission, $this->configuration);
     }
     catch (\Exception $e) {
