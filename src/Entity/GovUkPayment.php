@@ -37,6 +37,8 @@ use Drupal\Core\Entity\ContentEntityBase;
  *     "status" = "status",
  *     "amount" = "amount",
  *     "uid" = "uid",
+ *     "payment_for" = "payment_for",
+ *     "payment_reference" = "payment_reference",
  *     "owner" = "uid",
  *   },
  *   config_export = {
@@ -47,6 +49,8 @@ use Drupal\Core\Entity\ContentEntityBase;
  *     "submission_id",
  *     "status",
  *     "amount",
+ *     "payment_for",
+ *     "payment_reference",
  *     "uid",
  *   }
  * )
@@ -175,6 +179,36 @@ class GovUkPayment extends ContentEntityBase implements GovUkPaymentInterface {
         'label' => 'above',
         'type' => 'string',
         'weight' => -6,
+      ])
+      ->setDisplayConfigurable('view', TRUE);
+
+    $fields['payment_for'] = BaseFieldDefinition::create('string')
+      ->setLabel(t('Payment For'))
+      ->setDescription(t('The payment description shown to the user.'))
+      ->setSettings([
+        'default_value' => '',
+        'max_length' => 255,
+        'text_processing' => 0,
+      ])
+      ->setDisplayOptions('view', [
+        'label' => 'above',
+        'type' => 'string',
+        'weight' => -5,
+      ])
+      ->setDisplayConfigurable('view', TRUE);
+
+    $fields['payment_reference'] = BaseFieldDefinition::create('string')
+      ->setLabel(t('Payment Reference'))
+      ->setDescription(t('The payment reference shown to the user.'))
+      ->setSettings([
+        'default_value' => '',
+        'max_length' => 255,
+        'text_processing' => 0,
+      ])
+      ->setDisplayOptions('view', [
+        'label' => 'above',
+        'type' => 'string',
+        'weight' => -4,
       ])
       ->setDisplayConfigurable('view', TRUE);
 

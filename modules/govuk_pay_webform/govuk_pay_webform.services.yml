@@ -8,3 +8,4 @@ services:
       - '@request_stack'
       - '@entity_type.manager'
       - '@logger.factory'
+      - '@token'

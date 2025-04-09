@@ -48,7 +48,7 @@ class GovUkPayGeneralSettingsForm extends ConfigFormBase {
       '#required' => TRUE,
       '#type' => 'textfield',
       '#default_value' => $config->get('gov_pay__reference'),
-      '#description' => $this->t('The payment reference assigned to all GOV.UK Pay transactions on this site.'),
+      '#description' => $this->t('The fallback payment reference assigned to GOV.UK Pay transactions if not set individually on the handler.'),
     ];
 
     return parent::buildForm($form, $form_state);
