@@ -60,6 +60,13 @@ class GovPayHandler extends WebformHandlerBase {
   protected $logger;
 
   /**
+   * The GOV.UK Pay Webform service.
+   *
+   * @var \Drupal\govuk_pay_webform\GovUkPayWebformService
+   */
+  protected $paymentService;
+
+  /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
@@ -69,6 +76,7 @@ class GovPayHandler extends WebformHandlerBase {
     $instance->uuidService = $container->get('uuid');
     $instance->requestStack = $container->get('request_stack');
     $instance->logger = $container->get('logger.factory')->get('govuk_pay_webform');
+    $instance->paymentService = $container->get('govuk_pay_webform.payment_service');
     return $instance;
   }
 
@@ -147,8 +155,8 @@ class GovPayHandler extends WebformHandlerBase {
 
     $form['amount']['amount_element'] = [
       '#type' => 'select',
-      '#title' => $this->t('Amount element'),
-      '#description' => $this->t('Choose which webform element will provide the value to GOV.UK Pay.'),
+      '#title' => $this->t('Element'),
+      '#description' => $this->t('Choose the element that will provide the amount for the payment.'),
       '#default_value' => $this->configuration['amount_element'],
       '#options' => $this->valueElements(),
       '#states' => [
@@ -257,9 +265,7 @@ class GovPayHandler extends WebformHandlerBase {
    */
   public function postSave(WebformSubmissionInterface $webform_submission, $update = TRUE) {
     try {
-      /** @var \Drupal\govuk_pay_webform\GovUkPayWebformService $payment_service */
-      $payment_service = \Drupal::service('govuk_pay_webform.payment_service');
-      $payment_service->createPayment($webform_submission, $this->configuration);
+      $this->paymentService->createPayment($webform_submission, $this->configuration);
     }
     catch (\Exception $e) {
       // Log the error with appropriate context.
