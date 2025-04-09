@@ -160,6 +160,7 @@ class GovPayWebformController extends ControllerBase {
       $data['#payment_amount'] = $payment_details['amount'];
       $data['#payment_status'] = $payment_details['status'];
       $data['#payment_message'] = $payment_details['message'];
+      $data['#cache']['contexts'][] = 'session';
     }
     catch (\Exception $e) {
       $this->messenger->addError($this->t('An error occurred while processing your payment information. Please contact support.'));
