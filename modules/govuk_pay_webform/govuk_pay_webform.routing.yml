@@ -1,7 +1,10 @@
 govuk_pay_webform.confirmation_page:
-  path: 'gov-pay-confirmation'
+  path: 'gov-pay-confirmation/{uuid}/{webform_id}/{submission_id}'
   defaults:
     _controller: '\Drupal\govuk_pay_webform\Controller\GovPayWebformController::confirmationPage'
     _title: 'GOV.UK Pay Confirmation'
+    uuid: ''
+    webform_id: ''
+    submission_id: ''
   requirements:
-    _govuk_pay_webform_access_check: 'TRUE'
+    _govukpayment_access_check: 'TRUE'

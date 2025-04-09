@@ -2,7 +2,7 @@
 
 namespace Drupal\govuk_pay;
 
-use Swagger\Client\Model\RefundForSearchResult;
+use Swagger\Client\Model\RefundsResponse;
 use Swagger\Client\Model\Refund;
 use Swagger\Client\Model\PaymentWithAllLinks;
 use Swagger\Client\Model\PaymentRefundRequest;
@@ -357,7 +357,7 @@ class ApiService {
    * @param string $payment_id
    *   The payment ID.
    *
-   * @return \Swagger\Client\Model\RefundForSearchResult
+   * @return \Swagger\Client\Model\RefundsResponse
    *   The refunds.
    *
    * @throws \InvalidArgumentException
@@ -365,7 +365,7 @@ class ApiService {
    * @throws \RuntimeException
    *   Thrown when the refunds retrieval fails.
    */
-  public function getRefunds(string $payment_id): RefundForSearchResult {
+  public function getRefunds(string $payment_id): RefundsResponse {
     try {
       if (empty($payment_id)) {
         throw new \InvalidArgumentException('Payment ID cannot be empty.');
