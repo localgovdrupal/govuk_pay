@@ -7,6 +7,7 @@ use Symfony\Component\DependencyInjection\ContainerInterface;
 use Psr\Log\LoggerInterface;
 use Drupal\webform\Entity\Webform;
 use Drupal\govuk_pay_webform\GovUkPayWebformService;
+use Drupal\Core\Utility\Token;
 use Drupal\Core\Messenger\MessengerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Controller\ControllerBase;
@@ -53,6 +54,13 @@ class GovPayWebformController extends ControllerBase {
   protected $logger;
 
   /**
+   * The token service.
+   *
+   * @var \Drupal\Core\Utility\Token
+   */
+  protected $token;
+
+  /**
    * Constructs a new GovPayWebformController object.
    *
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
@@ -65,6 +73,8 @@ class GovPayWebformController extends ControllerBase {
    *   The messenger.
    * @param \Psr\Log\LoggerInterface $logger
    *   The logger.
+   * @param \Drupal\Core\Utility\Token $token
+   *   The token service.
    */
   public function __construct(
     EntityTypeManagerInterface $entity_type_manager,
@@ -72,12 +82,14 @@ class GovPayWebformController extends ControllerBase {
     RequestStack $request_stack,
     MessengerInterface $messenger,
     LoggerInterface $logger,
+    Token $token,
   ) {
     $this->entityTypeManager = $entity_type_manager;
     $this->paymentService = $payment_service;
     $this->requestStack = $request_stack;
     $this->messenger = $messenger;
     $this->logger = $logger;
+    $this->token = $token;
   }
 
   /**
@@ -85,11 +97,12 @@ class GovPayWebformController extends ControllerBase {
    */
   public static function create(ContainerInterface $container) {
     return new static(
-      $container->get('entity_type.manager'),
-      $container->get('govuk_pay_webform.payment_service'),
-      $container->get('request_stack'),
-      $container->get('messenger'),
-      $container->get('logger.factory')->get('govuk_pay_webform')
+    $container->get('entity_type.manager'),
+    $container->get('govuk_pay_webform.payment_service'),
+    $container->get('request_stack'),
+    $container->get('messenger'),
+    $container->get('logger.factory')->get('govuk_pay_webform'),
+    $container->get('token')
     );
   }
 
@@ -107,6 +120,8 @@ class GovPayWebformController extends ControllerBase {
       '#payment_amount' => NULL,
       '#payment_status' => NULL,
       '#payment_message' => NULL,
+      '#payment_for' => NULL,
+      '#payment_reference' => NULL,
       '#confirmation_message' => NULL,
     ];
 
@@ -128,39 +143,64 @@ class GovPayWebformController extends ControllerBase {
       $webform_id = $payment_data['webform_id'];
       $submission_id = $payment_data['submission_id'];
 
+      // Get payment details from the session.
+      $payment_data = $this->paymentService->getPaymentData();
+
+      if (empty($payment_data)) {
+        $this->messenger->addError($this->t('Payment information not found. The payment session may have expired.'));
+        return $data;
+      }
+
       // Get the confirmation message from the GovPayHandler configuration.
       $webform = Webform::load($webform_id);
+      $webform_submission = NULL;
+
+      // Load the submission if available for token replacement.
+      if ($submission_id) {
+        $webform_submission = $this->entityTypeManager->getStorage('webform_submission')->load($submission_id);
+      }
+
       if ($webform) {
         foreach ($webform->getHandlers() as $handler) {
           if ($handler->getPluginId() === 'govuk_pay') {
             $configuration = $handler->getConfiguration();
             $confirmation_message = $configuration['settings']['confirmation_message'] ? $configuration['settings']['confirmation_message'] : NULL;
+            if ($confirmation_message && $webform_submission) {
+              // Replace tokens in the confirmation message.
+              $token_data = [
+                'webform' => $webform,
+                'webform_submission' => $webform_submission,
+              ];
+              $confirmation_message = $this->token->replace($confirmation_message, $token_data);
+            }
             if ($confirmation_message) {
               $data['#confirmation_message'] = new FormattableMarkup($confirmation_message, []);
             }
             break;
           }
         }
-      }
 
-      // Provide default confirmation message if empty.
-      if (empty($data['#confirmation_message'])) {
-        $default_message = $this->t('Thank you for making a payment via GOV.UK Pay.<br/>
+        // Provide default confirmation message if empty.
+        if (empty($data['#confirmation_message'])) {
+          $default_message = $this->t('Thank you for making a payment via GOV.UK Pay.<br/>
           If your payment has not shown as complete for over 1 day, 
           please contact us with your payment ID.
         ');
-        $data['#confirmation_message'] = new FormattableMarkup($default_message, []);
+          $data['#confirmation_message'] = new FormattableMarkup($default_message, []);
+        }
+
+        // Fetch payment details using the service.
+        $payment_details = $this->paymentService->getPaymentDetails($uuid, $webform_id, $submission_id);
+
+        // Set payment details in the render array.
+        $data['#payment_id'] = $payment_details['payment_id'];
+        $data['#payment_amount'] = $payment_details['amount'];
+        $data['#payment_status'] = $payment_details['status'];
+        $data['#payment_message'] = $payment_details['message'];
+        $data['#payment_for'] = $payment_details['payment_for'];
+        $data['#payment_reference'] = $payment_details['payment_reference'];
+        $data['#cache']['contexts'][] = 'session';
       }
-
-      // Fetch payment details using the service.
-      $payment_details = $this->paymentService->getPaymentDetails($uuid, $webform_id, $submission_id);
-
-      // Set payment details in the render array.
-      $data['#payment_id'] = $payment_details['payment_id'];
-      $data['#payment_amount'] = $payment_details['amount'];
-      $data['#payment_status'] = $payment_details['status'];
-      $data['#payment_message'] = $payment_details['message'];
-      $data['#cache']['contexts'][] = 'session';
     }
     catch (\Exception $e) {
       $this->messenger->addError($this->t('An error occurred while processing your payment information. Please contact support.'));

@@ -16,6 +16,8 @@ function govuk_pay_webform_theme($existing, $type, $theme, $path) {
         'payment_amount' => NULL,
         'payment_status' => NULL,
         'payment_message' => NULL,
+        'payment_for' => NULL,
+        'payment_reference' => NULL,
         'confirmation_message' => NULL,
       ],
     ],

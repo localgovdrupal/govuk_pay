@@ -7,6 +7,7 @@ use GuzzleHttp\Psr7\Uri;
 use Drupal\webform\WebformSubmissionInterface;
 use Drupal\govuk_pay\Entity\GovUkPayment;
 use Drupal\govuk_pay\ApiService;
+use Drupal\Core\Utility\Token;
 use Drupal\Core\Url;
 use Drupal\Core\TempStore\PrivateTempStoreFactory;
 use Drupal\Core\Routing\TrustedRedirectResponse;
@@ -70,6 +71,13 @@ class GovUkPayWebformService {
   protected $tempStore;
 
   /**
+   * The token service.
+   *
+   * @var \Drupal\Core\Utility\Token
+   */
+  protected $token;
+
+  /**
    * Constructs a new GovUkPayWebformService.
    *
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
@@ -86,6 +94,8 @@ class GovUkPayWebformService {
    *   The logger factory.
    * @param \Drupal\Core\TempStore\PrivateTempStoreFactory $temp_store_factory
    *   The temp store factory.
+   * @param \Drupal\Core\Utility\Token $token
+   *   The token service.
    */
   public function __construct(
     ConfigFactoryInterface $config_factory,
@@ -95,6 +105,7 @@ class GovUkPayWebformService {
     EntityTypeManagerInterface $entity_type_manager,
     LoggerChannelFactoryInterface $logger_factory,
     PrivateTempStoreFactory $temp_store_factory,
+    Token $token,
   ) {
     $this->configFactory = $config_factory;
     $this->apiService = $api_service;
@@ -103,6 +114,7 @@ class GovUkPayWebformService {
     $this->entityTypeManager = $entity_type_manager;
     $this->logger = $logger_factory->get('govuk_pay_webform');
     $this->tempStore = $temp_store_factory->get('govuk_pay_webform');
+    $this->token = $token;
   }
 
   /**
@@ -124,9 +136,6 @@ class GovUkPayWebformService {
     $config = $this->configFactory->get('govuk_pay.settings');
 
     // Validate required parameters.
-    if (empty($config->get('gov_pay__reference'))) {
-      throw new \RuntimeException('GOV.UK Pay reference is not configured. This is a required field on /admin/config/govuk_pay/settings.');
-    }
     if (empty($config->get('gov_pay__apikey'))) {
       throw new \RuntimeException('GOV.UK Pay API key is not configured. This is a required field on /admin/config/govuk_pay/settings.');
     }
@@ -139,9 +148,15 @@ class GovUkPayWebformService {
       throw new \RuntimeException('Payment amount could not be determined.');
     }
 
-    $message = $configuration['payment_message'] ?? $webform->label();
-    if (strlen($message) > 254) {
-      $message = substr($message, 0, 251) . '...';
+    // Process the payment description with token replacement.
+    $payment_for = $this->replaceTokens($configuration['payment_for'] ?? '', $webform_submission);
+    if (empty($payment_for)) {
+      $payment_for = $webform->label();
+    }
+
+    // Ensure the description doesn't exceed GOV.UK Pay's limit.
+    if (strlen($payment_for) > 254) {
+      $payment_for = substr($payment_for, 0, 251) . '...';
     }
 
     $uuid = $this->uuidService->generate();
@@ -160,10 +175,22 @@ class GovUkPayWebformService {
     $url_object = Url::fromRoute('govuk_pay_webform.confirmation_page', [], ['absolute' => TRUE]);
     $returnUrl = new Uri($url_object->toString());
 
+    // Process payment reference with token replacement.
+    $payment_reference = $this->replaceTokens($configuration['payment_reference'] ?? '', $webform_submission);
+
+    // If payment_reference is empty, use the global reference
+    // from settings as fallback.
+    if (empty($payment_reference)) {
+      if (empty($config->get('gov_pay__reference'))) {
+        throw new \RuntimeException('GOV.UK Pay reference is not configured. This is a required field on /admin/config/govuk_pay/settings.');
+      }
+      $payment_reference = $config->get('gov_pay__reference');
+    }
+
     $payment_response = $this->apiService->createPayment(
       $amount,
-      $config->get('gov_pay__reference'),
-      $message,
+      $payment_reference,
+      $payment_for,
       $returnUrl
     );
 
@@ -174,6 +201,8 @@ class GovUkPayWebformService {
       'status' => $payment_response->getState()->getStatus(),
       'webform_id' => $webform->id(),
       'submission_id' => $sid,
+      'payment_for' => $payment_for,
+      'payment_reference' => $payment_reference,
     ]);
     $payment->save();
 
@@ -273,7 +302,8 @@ class GovUkPayWebformService {
    *
    * @return array
    *   Payment details array with keys for
-   *   payment_id, amount, status, and message.
+   *   payment_id,
+   *   amount, status, and message.
    */
   public function getPaymentDetails($uuid, $webform_id, $submission_id) {
     $details = [
@@ -281,6 +311,8 @@ class GovUkPayWebformService {
       'amount' => NULL,
       'status' => NULL,
       'message' => NULL,
+      'payment_for' => NULL,
+      'payment_reference' => NULL,
     ];
 
     $payment = $this->getPaymentByUuid($uuid, $webform_id, $submission_id);
@@ -299,6 +331,21 @@ class GovUkPayWebformService {
       }
       else {
         $details['amount'] = 'Payment not found';
+      }
+
+      // Get payment_for and payment_reference from the entity if available.
+      if ($payment->hasField('payment_for') && !$payment->get('payment_for')->isEmpty()) {
+        $details['payment_for'] = $payment->get('payment_for')->getValue()[0]['value'];
+      }
+
+      if ($payment->hasField('payment_reference') && !$payment->get('payment_reference')->isEmpty()) {
+        $details['payment_reference'] = $payment->get('payment_reference')->getValue()[0]['value'];
+      }
+      // If payment_reference is still empty, use the global reference from
+      // settings as fallback.
+      elseif (empty($details['payment_reference'])) {
+        $config = $this->configFactory->get('govuk_pay.settings');
+        $details['payment_reference'] = $config->get('gov_pay__reference');
       }
     }
 
@@ -362,6 +409,30 @@ class GovUkPayWebformService {
         ['@error' => $e->getMessage()]
       );
     }
+  }
+
+  /**
+   * Replace tokens in text with webform submission values.
+   *
+   * @param string $text
+   *   The text to process.
+   * @param \Drupal\webform\WebformSubmissionInterface $webform_submission
+   *   A webform submission.
+   *
+   * @return string
+   *   Text with tokens replaced.
+   */
+  protected function replaceTokens($text, WebformSubmissionInterface $webform_submission) {
+    if (empty($text) || strpos($text, '[') === FALSE) {
+      return $text;
+    }
+
+    $token_data = [
+      'webform' => $webform_submission->getWebform(),
+      'webform_submission' => $webform_submission,
+    ];
+
+    return $this->token->replace($text, $token_data);
   }
 
 }

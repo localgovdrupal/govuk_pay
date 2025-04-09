@@ -67,6 +67,13 @@ class GovPayHandler extends WebformHandlerBase {
   protected $paymentService;
 
   /**
+   * The token service.
+   *
+   * @var \Drupal\Core\Utility\Token
+   */
+  protected $token;
+
+  /**
    * {@inheritdoc}
    */
   public static function create(ContainerInterface $container, array $configuration, $plugin_id, $plugin_definition) {
@@ -77,6 +84,7 @@ class GovPayHandler extends WebformHandlerBase {
     $instance->requestStack = $container->get('request_stack');
     $instance->logger = $container->get('logger.factory')->get('govuk_pay_webform');
     $instance->paymentService = $container->get('govuk_pay_webform.payment_service');
+    $instance->token = $container->get('token');
     return $instance;
   }
 
@@ -91,7 +99,8 @@ class GovPayHandler extends WebformHandlerBase {
       'amount_element' => '',
       'amount_static' => '',
       'default_markup' => '',
-      'payment_message' => '',
+      'payment_for' => '',
+      'payment_reference' => '',
       'confirmation_message' => '',
     ] + parent::defaultConfiguration();
   }
@@ -190,22 +199,44 @@ class GovPayHandler extends WebformHandlerBase {
     $form['messages'] = [
       '#type' => 'fieldset',
       '#title' => $this->t('Messages'),
+      '#description' => $this->t('Messages to display to the user on the GOV.UK Pay page and confirmation page. Token can be used in any of these fields.'),
       '#parents' => ['settings'],
     ];
 
-    $form['messages']['payment_message'] = [
+    $form['messages']['payment_for'] = [
       '#type' => 'textfield',
-      '#title' => $this->t('Payment message'),
-      '#description' => $this->t('Text to display to the user on the GOV.UK Pay page.'),
-      '#default_value' => $this->configuration['payment_message'],
+      '#title' => $this->t('Payment for'),
+      '#description' => $this->t('Text to display to the user on the GOV.UK Pay page. Will also show on the receipt email sent from the gateway prefixed with the label "Payment for:"'),
+      '#default_value' => $this->configuration['payment_for'],
+    ];
+
+    $form['messages']['payment_reference'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Payment reference'),
+      '#description' => $this->t('Will be displayed on the confirmation page and also in the email send from the gateway, prefixed with the label "Reference:"'),
+      '#default_value' => $this->configuration['payment_reference'],
     ];
 
     $form['messages']['confirmation_message'] = [
       '#type' => 'webform_html_editor',
       '#title' => $this->t('Confirmation message'),
-      '#description' => $this->t('Text to display to the user once they return to the site from GOV.UK Pay.'),
+      '#description' => $this->t('Additional text to display to the user once they return to the site from GOV.UK Pay.'),
       '#default_value' => $this->configuration['confirmation_message'],
     ];
+
+    // Add token help if module is available.
+    if (\Drupal::moduleHandler()->moduleExists('token')) {
+      $form['messages']['token_help'] = [
+        '#type' => 'details',
+        '#title' => $this->t('Available tokens'),
+        '#description' => $this->t('Use these tokens to include submission data in the payment information.'),
+        '#open' => FALSE,
+      ];
+      $form['messages']['token_help']['token_tree'] = [
+        '#theme' => 'token_tree_link',
+        '#token_types' => ['webform', 'webform_submission'],
+      ];
+    }
 
     return $form;
   }
