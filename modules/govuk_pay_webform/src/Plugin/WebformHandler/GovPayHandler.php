@@ -102,6 +102,7 @@ class GovPayHandler extends WebformHandlerBase {
       'payment_for' => '',
       'payment_reference' => '',
       'confirmation_message' => '',
+      'metadata' => [],
     ] + parent::defaultConfiguration();
   }
 
@@ -224,6 +225,40 @@ class GovPayHandler extends WebformHandlerBase {
       '#default_value' => $this->configuration['confirmation_message'],
     ];
 
+    // Add metadata field for key/value pairs.
+    $form['metadata_container'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Metadata'),
+      '#description' => $this->t('Add optional metadata to be sent with the payment. Keys must be strings and values must be scalar (string, number, boolean).'),
+      '#open' => TRUE,
+    ];
+
+    // Use Drupal's multiple values pattern.
+    $form['metadata_container']['metadata'] = [
+      '#type' => 'webform_multiple',
+      '#title' => $this->t('Metadata key/value pairs'),
+      '#description' => $this->t('Add optional metadata to be sent with the payment. Keys must be strings and values must be scalar (string, number, boolean). Tokens can also be used but must resolve to a scalar value.'),
+      '#title_display' => 'invisible',
+      '#default_value' => $this->configuration['metadata'] ?? [],
+      '#add_more_text' => $this->t('Add another metadata item'),
+      '#empty_items' => 1,
+      '#no_items_message' => $this->t('No metadata has been added.'),
+      '#element' => [
+        'key' => [
+          '#type' => 'textfield',
+          '#title' => $this->t('Key'),
+          '#placeholder' => $this->t('Enter metadata key'),
+          '#maxlength' => 128,
+        ],
+        'value' => [
+          '#type' => 'textfield',
+          '#title' => $this->t('Value'),
+          '#placeholder' => $this->t('Enter metadata value'),
+          '#maxlength' => 255,
+        ],
+      ],
+    ];
+
     // Add token help if module is available.
     if (\Drupal::moduleHandler()->moduleExists('token')) {
       $form['messages']['token_help'] = [
@@ -242,6 +277,38 @@ class GovPayHandler extends WebformHandlerBase {
   }
 
   /**
+   * Ajax callback for the metadata table.
+   */
+  public function metadataTableAjaxCallback(array &$form, FormStateInterface $form_state) {
+    return $form['metadata_container']['metadata'];
+  }
+
+  /**
+   * Submit handler for adding more metadata rows.
+   */
+  public function addMetadataCallback(array &$form, FormStateInterface $form_state) {
+    $metadata = $form_state->get('metadata');
+    $metadata[] = ['key' => '', 'value' => ''];
+    $form_state->set('metadata', $metadata);
+    $form_state->setRebuild();
+  }
+
+  /**
+   * Submit handler for removing metadata rows.
+   */
+  public function removeMetadataCallback(array &$form, FormStateInterface $form_state) {
+    $trigger = $form_state->getTriggeringElement();
+    $delta = str_replace('remove_metadata_', '', $trigger['#name']);
+
+    $metadata = $form_state->get('metadata');
+    unset($metadata[$delta]);
+    // Re-index the array.
+    $metadata = array_values($metadata);
+    $form_state->set('metadata', $metadata);
+    $form_state->setRebuild();
+  }
+
+  /**
    * {@inheritDoc}
    */
   public function submitConfigurationForm(array &$form, FormStateInterface $form_state) {
@@ -249,12 +316,16 @@ class GovPayHandler extends WebformHandlerBase {
 
     $values = $form_state->getValues();
 
+    // Get metadata values.
+    if (isset($values['metadata_container']['metadata'])) {
+      $this->configuration['metadata'] = $values['metadata_container']['metadata'];
+    }
+
     foreach ($this->configuration as $name => $value) {
       if (isset($values[$name])) {
         $this->configuration[$name] = $values[$name];
       }
     }
-
   }
 
   /**

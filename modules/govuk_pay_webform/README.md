@@ -52,6 +52,14 @@ Choose how the payment amount will be determined:
 - **Payment message**: A custom message displayed on the GOV.UK Pay payment page
 - **Confirmation message**: A custom message displayed on the confirmation page
 
+#### Metadata
+- **Metadata key/value pairs**: Optional metadata that will be sent with the payment to GOV.UK Pay
+  - You can add multiple key/value pairs by clicking the "Add another metadata item" button
+  - Both keys and values support token replacement, allowing you to include dynamic data from the webform submission
+  - Keys must be strings and values must be scalar (string, number, boolean)
+  - This metadata will be available in GOV.UK Pay reports and can be used for filtering and reporting purposes
+  - Example use cases: tracking department codes, cost centers, service identifiers, or any other custom data needed for reconciliation
+
 ## How It Works
 1. When a user submits a webform with the govuk_pay webform handler, the normal webform submission process is intercepted when the handler triggers
 2. The user is redirected to GOV.UK Pay to complete their payment

@@ -7,7 +7,6 @@ use Swagger\Client\Model\Refund;
 use Swagger\Client\Model\PaymentWithAllLinks;
 use Swagger\Client\Model\PaymentRefundRequest;
 use Swagger\Client\Model\PaymentEvents;
-use Swagger\Client\Model\ExternalMetadata;
 use Swagger\Client\Model\CreatePaymentResult;
 use Swagger\Client\Model\CreateCardPaymentRequest;
 use GuzzleHttp\Psr7\Uri;
@@ -129,11 +128,7 @@ class ApiService {
       $payment_request->setReturnUrl((string) $return_url);
 
       if (!empty($metadata)) {
-        $external_metadata = new ExternalMetadata();
-        foreach ($metadata as $key => $value) {
-          $external_metadata[$key] = $value;
-        }
-        $payment_request->setMetadata($external_metadata);
+        $payment_request->setMetadata($metadata);
       }
 
       // Create the payment.

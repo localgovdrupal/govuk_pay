@@ -187,11 +187,28 @@ class GovUkPayWebformService {
       $payment_reference = $config->get('gov_pay__reference');
     }
 
+    // Process metadata from configuration.
+    $metadata = [];
+    if (!empty($configuration['metadata']) && is_array($configuration['metadata'])) {
+      foreach ($configuration['metadata'] as $item) {
+        if (!empty($item['key']) && isset($item['value'])) {
+          // Process tokens in both key and value.
+          $key = $this->replaceTokens($item['key'], $webform_submission);
+          $value = $this->replaceTokens($item['value'], $webform_submission);
+          // Only add non-empty keys with defined values.
+          if (!empty($key) && $value !== '') {
+            $metadata[$key] = $value;
+          }
+        }
+      }
+    }
+
     $payment_response = $this->apiService->createPayment(
       $amount,
       $payment_reference,
       $payment_for,
-      $returnUrl
+      $returnUrl,
+      $metadata
     );
 
     $payment = GovUkPayment::create([
