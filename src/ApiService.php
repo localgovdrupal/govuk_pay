@@ -85,6 +85,10 @@ class ApiService {
    * @param array $metadata
    *   Optional metadata to include with the payment.
    *   Keys must be strings, values must be scalar.
+   * @param string|null $email
+   *   Optional email address to pre-fill on the payment page.
+   * @param array|null $prefilled_cardholder_details
+   *   Optional cardholder details to pre-fill on the payment page.
    *
    * @return \Swagger\Client\Model\CreatePaymentResult
    *   The payment result.
@@ -94,7 +98,7 @@ class ApiService {
    * @throws \RuntimeException
    *   Thrown when the payment creation fails.
    */
-  public function createPayment($amount, string $reference, string $description, Uri $return_url, array $metadata = []): CreatePaymentResult {
+  public function createPayment($amount, string $reference, string $description, Uri $return_url, array $metadata = [], ?string $email = NULL, ?array $prefilled_cardholder_details = NULL): CreatePaymentResult {
     try {
       // Validate input parameters.
       if (!is_numeric($amount) || $amount <= 0) {
@@ -129,6 +133,16 @@ class ApiService {
 
       if (!empty($metadata)) {
         $payment_request->setMetadata($metadata);
+      }
+
+      // Add email if provided.
+      if (!empty($email)) {
+        $payment_request->setEmail($email);
+      }
+
+      // Add prefilled cardholder details if provided.
+      if (!empty($prefilled_cardholder_details)) {
+        $payment_request->setPrefilledCardholderDetails($prefilled_cardholder_details);
       }
 
       // Create the payment.

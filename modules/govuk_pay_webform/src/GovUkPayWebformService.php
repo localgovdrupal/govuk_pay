@@ -171,7 +171,7 @@ class GovUkPayWebformService {
     // Store payment data in the session.
     $this->setPaymentData($payment_data);
 
-    // Create the return URL without parameters.
+    // Create the return URL.
     $url_object = Url::fromRoute('govuk_pay_webform.confirmation_page', [], ['absolute' => TRUE]);
     $returnUrl = new Uri($url_object->toString());
 
@@ -203,12 +203,81 @@ class GovUkPayWebformService {
       }
     }
 
+    // Process email field with token replacement.
+    $email = NULL;
+    if (!empty($configuration['fields']['email'])) {
+      $email = $this->replaceTokens($configuration['fields']['email'], $webform_submission, TRUE);
+    }
+
+    // Process prefilled cardholder details.
+    $prefilled_cardholder_details = NULL;
+    $cardholder_name = NULL;
+    $billing_address = NULL;
+
+    // Check if name field is configured and has a value.
+    if (!empty($configuration['fields']['name'])) {
+      $cardholder_name = $this->replaceTokens($configuration['fields']['name'], $webform_submission, TRUE);
+    }
+
+    // Check if address fields are configured and have values.
+    $line1 = !empty($configuration['fields']['address']['line1'])
+      ? $this->replaceTokens($configuration['fields']['address']['line1'], $webform_submission, TRUE)
+      : NULL;
+    $line2 = !empty($configuration['fields']['address']['line2'])
+      ? $this->replaceTokens($configuration['fields']['address']['line2'], $webform_submission, TRUE)
+      : NULL;
+    $postcode = !empty($configuration['fields']['address']['postcode'])
+      ? $this->replaceTokens($configuration['fields']['address']['postcode'], $webform_submission, TRUE)
+      : NULL;
+    $city = !empty($configuration['fields']['address']['city'])
+      ? $this->replaceTokens($configuration['fields']['address']['city'], $webform_submission, TRUE)
+      : NULL;
+    $country = !empty($configuration['fields']['address']['country'])
+      ? $this->replaceTokens($configuration['fields']['address']['country'], $webform_submission, TRUE)
+      : 'GB';
+
+    // Only create billing address if at least line1 is provided.
+    if (!empty($line1)) {
+      $billing_address = [
+        'line1' => $line1,
+      ];
+
+      // Add optional address fields if they have values.
+      if (!empty($line2)) {
+        $billing_address['line2'] = $line2;
+      }
+      if (!empty($postcode)) {
+        $billing_address['postcode'] = $postcode;
+      }
+      if (!empty($city)) {
+        $billing_address['city'] = $city;
+      }
+      if (!empty($country)) {
+        $billing_address['country'] = $country;
+      }
+    }
+
+    // Create prefilled_cardholder_details if we have either name or address.
+    if (!empty($cardholder_name) || !empty($billing_address)) {
+      $prefilled_cardholder_details = [];
+
+      if (!empty($cardholder_name)) {
+        $prefilled_cardholder_details['cardholder_name'] = $cardholder_name;
+      }
+
+      if (!empty($billing_address)) {
+        $prefilled_cardholder_details['billing_address'] = $billing_address;
+      }
+    }
+
     $payment_response = $this->apiService->createPayment(
       $amount,
       $payment_reference,
       $payment_for,
       $returnUrl,
-      $metadata
+      $metadata,
+      $email,
+      $prefilled_cardholder_details
     );
 
     $payment = GovUkPayment::create([
@@ -435,11 +504,13 @@ class GovUkPayWebformService {
    *   The text to process.
    * @param \Drupal\webform\WebformSubmissionInterface $webform_submission
    *   A webform submission.
+   * @param bool $plain_text
+   *   Whether to return plain text (TRUE) or HTML (FALSE).
    *
    * @return string
    *   Text with tokens replaced.
    */
-  protected function replaceTokens($text, WebformSubmissionInterface $webform_submission) {
+  protected function replaceTokens($text, WebformSubmissionInterface $webform_submission, $plain_text = FALSE) {
     if (empty($text) || strpos($text, '[') === FALSE) {
       return $text;
     }
@@ -449,6 +520,12 @@ class GovUkPayWebformService {
       'webform_submission' => $webform_submission,
     ];
 
+    // Use replacePlain for plain text output (no HTML encoding).
+    if ($plain_text) {
+      return $this->token->replacePlain($text, $token_data);
+    }
+
+    // Use replace for HTML output (with HTML encoding).
     return $this->token->replace($text, $token_data);
   }
 
