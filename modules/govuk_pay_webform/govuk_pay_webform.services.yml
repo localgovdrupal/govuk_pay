@@ -10,6 +10,7 @@ services:
       - '@logger.factory'
       - '@tempstore.private'
       - '@token'
+      - '@current_user'
   govuk_pay_webform.access_checker:
     class: Drupal\govuk_pay_webform\Access\GovPayWebformAccess
     arguments: ['@current_user', '@tempstore.private']

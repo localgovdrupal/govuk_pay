@@ -200,6 +200,42 @@ class GovPayWebformController extends ControllerBase {
         $data['#payment_for'] = $payment_details['payment_for'];
         $data['#payment_reference'] = $payment_details['payment_reference'];
         $data['#cache']['contexts'][] = 'session';
+
+        // Update Payment entity with status from payment details.
+        if (!empty($payment_details['payment_id']) && !empty($payment_details['status'])) {
+          try {
+            // Load the payment entity by UUID.
+            $payment_storage = $this->entityTypeManager->getStorage('govukpayment');
+            $payment_entities = $payment_storage->loadByProperties(['uuid' => $uuid]);
+
+            if (!empty($payment_entities)) {
+              /** @var \Drupal\govuk_pay\Entity\GovUkPayment $payment_entity */
+              $payment_entity = reset($payment_entities);
+
+              // Only update if the status has changed.
+              if ($payment_entity->get('status')->value !== $payment_details['status']) {
+                $payment_entity->setNewRevision(TRUE);
+                $payment_entity->setRevisionCreationTime(time());
+                $payment_entity->setRevisionLogMessage('Payment status updated from ' . $payment_entity->get('status')->value . ' to ' . $payment_details['status']);
+                // Set the revision owner to the current user if available.
+                $current_user = $this->currentUser();
+                if ($current_user) {
+                  $payment_entity->setRevisionUserId($current_user->id());
+                }
+                $payment_entity->set('status', $payment_details['status']);
+                $payment_entity->save();
+                $this->logger->info('Payment status updated for UUID: @uuid from @old_status to @new_status', [
+                  '@uuid' => $uuid,
+                  '@old_status' => $payment_entity->get('status')->value,
+                  '@new_status' => $payment_details['status'],
+                ]);
+              }
+            }
+          }
+          catch (\Exception $e) {
+            $this->logger->error('Error updating payment entity status: @error', ['@error' => $e->getMessage()]);
+          }
+        }
       }
     }
     catch (\Exception $e) {

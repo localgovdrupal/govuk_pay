@@ -10,6 +10,7 @@ use Drupal\govuk_pay\ApiService;
 use Drupal\Core\Utility\Token;
 use Drupal\Core\Url;
 use Drupal\Core\TempStore\PrivateTempStoreFactory;
+use Drupal\Core\Session\AccountProxyInterface;
 use Drupal\Core\Routing\TrustedRedirectResponse;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
@@ -29,7 +30,7 @@ class GovUkPayWebformService {
   protected $configFactory;
 
   /**
-   * The GOV.UK Pay API service.
+   * The API service.
    *
    * @var \Drupal\govuk_pay\ApiService
    */
@@ -57,14 +58,21 @@ class GovUkPayWebformService {
   protected $entityTypeManager;
 
   /**
-   * The logger service.
+   * The logger factory.
    *
-   * @var \Psr\Log\LoggerInterface
+   * @var \Drupal\Core\Logger\LoggerChannelFactoryInterface
+   */
+  protected $loggerFactory;
+
+  /**
+   * The logger channel.
+   *
+   * @var \Drupal\Core\Logger\LoggerChannelInterface
    */
   protected $logger;
 
   /**
-   * The private temp store.
+   * The tempstore service.
    *
    * @var \Drupal\Core\TempStore\PrivateTempStore
    */
@@ -78,12 +86,19 @@ class GovUkPayWebformService {
   protected $token;
 
   /**
+   * The current user.
+   *
+   * @var \Drupal\Core\Session\AccountProxyInterface
+   */
+  protected $currentUser;
+
+  /**
    * Constructs a new GovUkPayWebformService.
    *
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
    *   The config factory.
    * @param \Drupal\govuk_pay\ApiService $api_service
-   *   The GOV.UK Pay API service.
+   *   The API service.
    * @param \Drupal\Component\Uuid\UuidInterface $uuid_service
    *   The UUID service.
    * @param \Symfony\Component\HttpFoundation\RequestStack $request_stack
@@ -93,9 +108,11 @@ class GovUkPayWebformService {
    * @param \Drupal\Core\Logger\LoggerChannelFactoryInterface $logger_factory
    *   The logger factory.
    * @param \Drupal\Core\TempStore\PrivateTempStoreFactory $temp_store_factory
-   *   The temp store factory.
+   *   The tempstore factory.
    * @param \Drupal\Core\Utility\Token $token
    *   The token service.
+   * @param \Drupal\Core\Session\AccountProxyInterface $current_user
+   *   The current user.
    */
   public function __construct(
     ConfigFactoryInterface $config_factory,
@@ -106,15 +123,18 @@ class GovUkPayWebformService {
     LoggerChannelFactoryInterface $logger_factory,
     PrivateTempStoreFactory $temp_store_factory,
     Token $token,
+    AccountProxyInterface $current_user,
   ) {
     $this->configFactory = $config_factory;
     $this->apiService = $api_service;
     $this->uuidService = $uuid_service;
     $this->requestStack = $request_stack;
     $this->entityTypeManager = $entity_type_manager;
+    $this->loggerFactory = $logger_factory;
     $this->logger = $logger_factory->get('govuk_pay_webform');
     $this->tempStore = $temp_store_factory->get('govuk_pay_webform');
     $this->token = $token;
+    $this->currentUser = $current_user;
   }
 
   /**
@@ -211,17 +231,16 @@ class GovUkPayWebformService {
       $metadata
     );
 
-    $payment = GovUkPayment::create([
-      'payment_id' => $payment_response->getPaymentId(),
-      'amount' => $amount,
-      'uuid' => $uuid,
-      'status' => $payment_response->getState()->getStatus(),
-      'webform_id' => $webform->id(),
-      'submission_id' => $sid,
-      'payment_for' => $payment_for,
-      'payment_reference' => $payment_reference,
-    ]);
-    $payment->save();
+    // Create the payment entity and get the next URL from the response.
+    $this->createPaymentEntity(
+      $payment_response,
+      $uuid,
+      $amount,
+      $webform->id(),
+      $sid,
+      $payment_for,
+      $payment_reference,
+    );
 
     $links = $payment_response->getLinks();
     $nextUrl = $links['next_url']->getHref() ?? NULL;
@@ -450,6 +469,61 @@ class GovUkPayWebformService {
     ];
 
     return $this->token->replace($text, $token_data);
+  }
+
+  /**
+   * Create a payment entity from a payment response.
+   *
+   * @param \Swagger\Client\Model\CreatePaymentResult $payment_response
+   *   The payment response from the GOV.UK Pay API.
+   * @param string $uuid
+   *   The UUID for the payment.
+   * @param int $amount
+   *   The payment amount in pence.
+   * @param string $webform_id
+   *   The webform ID.
+   * @param string $submission_id
+   *   The submission ID.
+   * @param string $payment_for
+   *   The payment description.
+   * @param string $payment_reference
+   *   The payment reference.
+   *
+   * @return \Drupal\govuk_pay\Entity\GovUkPayment
+   *   The created payment entity.
+   */
+  public function createPaymentEntity(
+    $payment_response,
+    $uuid,
+    $amount,
+    $webform_id,
+    $submission_id,
+    $payment_for,
+    $payment_reference,
+  ) {
+    $payment = GovUkPayment::create([
+      'payment_id' => $payment_response->getPaymentId(),
+      'amount' => $amount,
+      'uuid' => $uuid,
+      'status' => $payment_response->getState()->getStatus(),
+      'webform_id' => $webform_id,
+      'submission_id' => $submission_id,
+      'payment_for' => $payment_for,
+      'payment_reference' => $payment_reference,
+    ]);
+
+    // Set up the initial revision.
+    $payment->setNewRevision(TRUE);
+    $payment->setRevisionCreationTime(time());
+    $payment->setRevisionLogMessage('Payment created with initial status: ' . $payment_response->getState()->getStatus());
+
+    // Set the revision owner to the current user if available.
+    if ($this->currentUser) {
+      $payment->setRevisionUserId($this->currentUser->id());
+    }
+
+    $payment->save();
+    return $payment;
   }
 
 }
