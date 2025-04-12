@@ -337,6 +337,9 @@ class GovUkPayWebformService {
    *
    * @return int
    *   The payment amount in pence.
+   *
+   * @throws \RuntimeException
+   *   Throws exception if payment amount cannot be determined.
    */
   public function calculateAmount(WebformSubmissionInterface $webform_submission, array $configuration) {
     $amount = 0;
@@ -344,17 +347,24 @@ class GovUkPayWebformService {
     // Get the amount from the configuration.
     $amount_value = $configuration['fields']['amount'] ?? '';
 
-    // Process tokens in the amount value.
     if (!empty($amount_value)) {
-      $processed_amount = $this->token->replace($amount_value, [
-        'webform' => $webform_submission->getWebform(),
-        'webform_submission' => $webform_submission,
-      ]);
+      // Use the replaceTokens method with plain_text=TRUE.
+      // to avoid HTML encoding.
+      $processed_amount = $this->replaceTokens(
+        $amount_value,
+        $webform_submission,
+        TRUE
+      );
 
       if (is_numeric($processed_amount)) {
         // Convert to pence (multiply by 100 and ensure integer).
         $amount = (int) (floatval($processed_amount) * 100);
       }
+    }
+
+    // If we still don't have a valid amount, throw an exception.
+    if ($amount <= 0) {
+      throw new \RuntimeException('Payment amount could not be determined. Please check your webform configuration.');
     }
 
     return $amount;
