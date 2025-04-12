@@ -18,6 +18,8 @@ jobs:
     
     steps:
     - uses: actions/checkout@v3
+      with:
+        path: module-source
     
     - name: Setup PHP
       uses: shivammathur/setup-php@v2
@@ -28,7 +30,7 @@ jobs:
     
     - name: Validate composer.json and composer.lock
       run: composer validate --strict
-      working-directory: ${{ github.workspace }}
+      working-directory: ${{ github.workspace }}/module-source
     
     - name: Get Composer Cache Directory
       id: composer-cache
@@ -51,8 +53,8 @@ jobs:
       run: |
         cd drupal
         mkdir -p web/modules/contrib/govuk_pay
-        cp -r $GITHUB_WORKSPACE/* web/modules/contrib/govuk_pay/
-        composer require tanc/govuk-pay-client-php --no-interaction
+        cp -r ${{ github.workspace }}/module-source/* web/modules/contrib/govuk_pay/
+        composer require tanc/govuk-pay-client-php:^1.0.3 --no-interaction
     
     - name: Run tests
       run: |
