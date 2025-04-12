@@ -43,6 +43,6 @@
         }
     ],
     "require": {
-        "tanc/govuk-pay-client-php": "1.0.3"
+        "tanc/govuk-pay-client-php": "^1.0.3"
     }
 }
