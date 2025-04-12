@@ -49,6 +49,11 @@ jobs:
         cd drupal
         composer require drupal/webform --no-interaction
     
+    - name: Add repositories for dependencies
+      run: |
+        cd drupal
+        composer config repositories.tanc-govuk-pay-client-php vcs https://github.com/tanc/govuk-pay-client-php
+    
     - name: Install GOV.UK Pay module
       run: |
         cd drupal
