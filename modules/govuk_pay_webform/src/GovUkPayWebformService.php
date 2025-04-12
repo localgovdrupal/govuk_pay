@@ -341,24 +341,20 @@ class GovUkPayWebformService {
   public function calculateAmount(WebformSubmissionInterface $webform_submission, array $configuration) {
     $amount = 0;
 
-    switch ($configuration['amount_provider']) {
-      case 'element':
-        $element_name = $configuration['amount_element'];
-        if (!empty($element_name)) {
-          $value = $webform_submission->getElementData($element_name);
-          if (is_numeric($value)) {
-            // Convert to pence (multiply by 100 and ensure integer).
-            $amount = (int) (floatval($value) * 100);
-          }
-        }
-        break;
+    // Get the amount from the configuration.
+    $amount_value = $configuration['fields']['amount'] ?? '';
 
-      case 'static':
-        if (!empty($configuration['amount_static']) && is_numeric($configuration['amount_static'])) {
-          // Convert to pence (multiply by 100 and ensure integer).
-          $amount = (int) (floatval($configuration['amount_static']) * 100);
-        }
-        break;
+    // Process tokens in the amount value.
+    if (!empty($amount_value)) {
+      $processed_amount = $this->token->replace($amount_value, [
+        'webform' => $webform_submission->getWebform(),
+        'webform_submission' => $webform_submission,
+      ]);
+
+      if (is_numeric($processed_amount)) {
+        // Convert to pence (multiply by 100 and ensure integer).
+        $amount = (int) (floatval($processed_amount) * 100);
+      }
     }
 
     return $amount;
