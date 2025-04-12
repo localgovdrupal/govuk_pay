@@ -48,6 +48,7 @@ jobs:
         composer create-project drupal/recommended-project:^${{ matrix.drupal-versions }} drupal
         cd drupal
         composer require drupal/webform --no-interaction
+        composer require --dev drupal/core-dev:^${{ matrix.drupal-versions }} --no-interaction
     
     - name: Add repositories for dependencies
       run: |
