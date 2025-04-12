@@ -156,8 +156,8 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
    * @param array $methods
    *   The methods to mock.
    *
-   * @return \PHPUnit\Framework\MockObject\MockObject
-   *   The mocked service.
+   * @return \Drupal\govuk_pay_webform\GovUkPayWebformService|\PHPUnit\Framework\MockObject\MockObject
+   *   The mocked service with calculateAmount method available.
    */
   protected function createMockService(array $methods) {
     return $this->getMockBuilder(GovUkPayWebformService::class)
@@ -442,6 +442,104 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
 
     // Call the method under test.
     $this->govUkPayWebformService->clearPaymentData();
+  }
+
+  /**
+   * Tests the calculateAmount method with a valid amount.
+   *
+   * @covers ::calculateAmount
+   */
+  public function testCalculateAmount() {
+    // Set up test data.
+    $amount_value = '25.50';
+    $configuration = [
+      'fields' => [
+        'amount' => $amount_value,
+      ],
+    ];
+
+    // Set up the token replacement expectation.
+    $webform = $this->prophesize(WebformInterface::class);
+    $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
+    $webform_submission->getWebform()->willReturn($webform->reveal());
+
+    // Create a service with our mocked methods.
+    $service = $this->createMockService(['replaceTokens']);
+
+    // Mock the replaceTokens method to return the amount value.
+    $service->expects($this->once())
+      ->method('replaceTokens')
+      ->with($amount_value, $webform_submission->reveal(), TRUE)
+      ->willReturn($amount_value);
+
+    // Call the method under test.
+    $result = $service->calculateAmount($webform_submission->reveal(), $configuration);
+
+    // Assert the result (25.50 converted to pence = 2550).
+    $this->assertEquals(2550, $result);
+  }
+
+  /**
+   * Tests the calculateAmount method with an empty amount.
+   *
+   * @covers ::calculateAmount
+   */
+  public function testCalculateAmountEmpty() {
+    // Set up test data with empty amount.
+    $configuration = [
+      'fields' => [
+        'amount' => '',
+      ],
+    ];
+
+    $webform = $this->prophesize(WebformInterface::class);
+    $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
+    $webform_submission->getWebform()->willReturn($webform->reveal());
+
+    // Create a service without mocking any methods.
+    $service = $this->createMockService([]);
+
+    // Expect an exception to be thrown.
+    $this->expectException(\RuntimeException::class);
+    $this->expectExceptionMessage('Payment amount could not be determined.');
+
+    // Call the method under test.
+    $service->calculateAmount($webform_submission->reveal(), $configuration);
+  }
+
+  /**
+   * Tests the calculateAmount method with a non-numeric amount.
+   *
+   * @covers ::calculateAmount
+   */
+  public function testCalculateAmountNonNumeric() {
+    // Set up test data with non-numeric amount.
+    $amount_value = 'not-a-number';
+    $configuration = [
+      'fields' => [
+        'amount' => $amount_value,
+      ],
+    ];
+
+    $webform = $this->prophesize(WebformInterface::class);
+    $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
+    $webform_submission->getWebform()->willReturn($webform->reveal());
+
+    // Create a service with our mocked methods.
+    $service = $this->createMockService(['replaceTokens']);
+
+    // Mock the replaceTokens method to return the non-numeric value.
+    $service->expects($this->once())
+      ->method('replaceTokens')
+      ->with($amount_value, $webform_submission->reveal(), TRUE)
+      ->willReturn($amount_value);
+
+    // Expect an exception to be thrown.
+    $this->expectException(\RuntimeException::class);
+    $this->expectExceptionMessage('Payment amount could not be determined.');
+
+    // Call the method under test.
+    $service->calculateAmount($webform_submission->reveal(), $configuration);
   }
 
 }
