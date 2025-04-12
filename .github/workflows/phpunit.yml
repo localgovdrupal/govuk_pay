@@ -1,0 +1,60 @@
+name: PHPUnit Tests
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        php-versions: ['8.1']
+        drupal-versions: ['10.4.6']
+
+    name: PHP ${{ matrix.php-versions }} / Drupal ${{ matrix.drupal-versions }}
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php-versions }}
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, mysql
+        coverage: xdebug
+    
+    - name: Validate composer.json and composer.lock
+      run: composer validate --strict
+      working-directory: ${{ github.workspace }}
+    
+    - name: Get Composer Cache Directory
+      id: composer-cache
+      run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+    
+    - name: Cache Composer dependencies
+      uses: actions/cache@v3
+      with:
+        path: ${{ steps.composer-cache.outputs.dir }}
+        key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
+        restore-keys: ${{ runner.os }}-composer-
+    
+    - name: Create Drupal project
+      run: |
+        composer create-project drupal/recommended-project:^${{ matrix.drupal-versions }} drupal
+        cd drupal
+        composer require drupal/webform --no-interaction
+    
+    - name: Install GOV.UK Pay module
+      run: |
+        cd drupal
+        mkdir -p web/modules/contrib/govuk_pay
+        cp -r $GITHUB_WORKSPACE/* web/modules/contrib/govuk_pay/
+        composer require tanc/govuk-pay-client-php --no-interaction
+    
+    - name: Run tests
+      run: |
+        cd drupal
+        vendor/bin/phpunit -c core/phpunit.xml.dist web/modules/contrib/govuk_pay
