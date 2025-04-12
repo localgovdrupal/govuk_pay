@@ -95,9 +95,18 @@ class GovPayHandler extends WebformHandlerBase {
     return [
       'wrapper_attributes' => [],
         // Component settings.
-      'amount_provider' => '',
-      'amount_element' => '',
-      'amount_static' => '',
+      'fields' => [
+        'amount' => '',
+        'name' => '',
+        'email' => '',
+        'address' => [
+          'line1' => '',
+          'line2' => '',
+          'postcode' => '',
+          'city' => '',
+          'country' => 'GB',
+        ],
+      ],
       'default_markup' => '',
       'payment_for' => '',
       'payment_reference' => '',
@@ -143,58 +152,75 @@ class GovPayHandler extends WebformHandlerBase {
    */
   public function buildConfigurationForm(array $form, FormStateInterface $form_state) {
 
-    $form['amount'] = [
+    $form['fields'] = [
       '#type' => 'fieldset',
-      '#title' => $this->t('Payment Amount'),
-      '#parents' => ['settings'],
+      '#title' => $this->t('Payment Fields'),
+      '#description' => $this->t('Configure fields that will be sent to the GOV.UK Pay gateway.'),
+      '#parents' => ['settings', 'fields'],
     ];
 
-    $form['amount']['amount_provider'] = [
-      '#type' => 'radios',
-      '#required' => TRUE,
-      '#title' => $this->t('Amount source'),
-      '#description' => $this->t('Choose how the amount of the GOV.UK Payment will be provided.'),
-      '#default_value' => $this->configuration['amount_provider'],
-      '#options' => [
-        'element' => $this->t('Webform element'),
-        'static' => $this->t('Fixed amount'),
-      ],
-    ];
-
-    $amount_provider_element_key = ':input[name="settings[amount_provider]"]';
-
-    $form['amount']['amount_element'] = [
-      '#type' => 'select',
-      '#title' => $this->t('Element'),
-      '#description' => $this->t('Choose the element that will provide the amount for the payment.'),
-      '#default_value' => $this->configuration['amount_element'],
-      '#options' => $this->valueElements(),
-      '#states' => [
-        'visible' => [
-          $amount_provider_element_key => ['value' => 'element'],
-        ],
-        'required' => [
-          $amount_provider_element_key => ['value' => 'element'],
-        ],
-      ],
-    ];
-    $form['amount']['amount_static'] = [
+    $form['fields']['amount'] = [
       '#type' => 'textfield',
-      '#attributes' => [
-        'type' => 'number',
-        'min' => 1,
-      ],
       '#title' => $this->t('Amount'),
-      '#description' => $this->t('Choose the amount that a payment will be made for.'),
-      '#default_value' => $this->configuration['amount_static'],
-      '#states' => [
-        'visible' => [
-          $amount_provider_element_key => ['value' => 'static'],
-        ],
-        'required' => [
-          $amount_provider_element_key => ['value' => 'static'],
-        ],
-      ],
+      '#description' => $this->t('Enter the amount for the payment. You can use tokens to map webform fields (e.g., [webform_submission:values:your_field_name]). The value will be converted to pence.'),
+      '#default_value' => $this->configuration['fields']['amount'] ?? '',
+      '#required' => TRUE,
+    ];
+
+    $form['fields']['email'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Email'),
+      '#description' => $this->t('Enter a token to map to the customer email field (e.g., [webform_submission:values:email]). This will pre-fill the email field on the payment page.'),
+      '#default_value' => $this->configuration['fields']['email'] ?? '',
+    ];
+
+    $form['fields']['name'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Cardholder Name'),
+      '#description' => $this->t('Enter a token to map to the cardholder name field (e.g., [webform_submission:values:name]). This will pre-fill the cardholder name on the payment page.'),
+      '#default_value' => $this->configuration['fields']['name'] ?? '',
+    ];
+
+    $form['fields']['address'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Billing Address'),
+      '#description' => $this->t('Configure the billing address fields that will be pre-filled on the payment page.'),
+      '#open' => TRUE,
+    ];
+
+    $form['fields']['address']['line1'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Address Line 1'),
+      '#description' => $this->t('Enter a token to map to the address line 1 field (e.g., [webform_submission:values:address_line1]).'),
+      '#default_value' => $this->configuration['fields']['address']['line1'] ?? '',
+    ];
+
+    $form['fields']['address']['line2'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Address Line 2'),
+      '#description' => $this->t('Enter a token to map to the address line 2 field (e.g., [webform_submission:values:address_line2]).'),
+      '#default_value' => $this->configuration['fields']['address']['line2'] ?? '',
+    ];
+
+    $form['fields']['address']['postcode'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Postcode'),
+      '#description' => $this->t('Enter a token to map to the postcode field (e.g., [webform_submission:values:postcode]).'),
+      '#default_value' => $this->configuration['fields']['address']['postcode'] ?? '',
+    ];
+
+    $form['fields']['address']['city'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('City'),
+      '#description' => $this->t('Enter a token to map to the city field (e.g., [webform_submission:values:city]).'),
+      '#default_value' => $this->configuration['fields']['address']['city'] ?? '',
+    ];
+
+    $form['fields']['address']['country'] = [
+      '#type' => 'textfield',
+      '#title' => $this->t('Country'),
+      '#description' => $this->t('Enter a token to map to the country field or a two-letter country code (e.g., GB for United Kingdom).'),
+      '#default_value' => $this->configuration['fields']['address']['country'] ?? 'GB',
     ];
 
     $form['messages'] = [
@@ -340,25 +366,22 @@ class GovPayHandler extends WebformHandlerBase {
   protected function getAmount(WebformSubmissionInterface $webform_submission) {
     $amount = 0;
 
-    switch ($this->configuration['amount_provider']) {
-      case 'element':
-        $element_name = $this->configuration['amount_element'];
-        if (!empty($element_name)) {
-          $value = $webform_submission->getElementData($element_name);
-          if (is_numeric($value)) {
-            // Convert to pence (multiply by 100 and ensure integer).
-            $amount = (int) (floatval($value) * 100);
-          }
-        }
-        break;
+    // Get the amount from the configuration.
+    $amount_value = $this->configuration['fields']['amount'] ?? '';
 
-      case 'static':
-        if (!empty($this->configuration['amount_static']) && is_numeric($this->configuration['amount_static'])) {
-          // Convert to pence (multiply by 100 and ensure integer).
-          $amount = (int) (floatval($this->configuration['amount_static']) * 100);
-        }
-        break;
+    // Process tokens in the amount value.
+    if (!empty($amount_value)) {
+      $processed_amount = $this->token->replace($amount_value, [
+        'webform' => $webform_submission->getWebform(),
+        'webform_submission' => $webform_submission,
+      ]);
+
+      if (is_numeric($processed_amount)) {
+        // Convert to pence (multiply by 100 and ensure integer).
+        $amount = (int) (floatval($processed_amount) * 100);
+      }
     }
+
     return $amount;
   }
 
