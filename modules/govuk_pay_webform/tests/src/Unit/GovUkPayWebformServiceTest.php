@@ -542,4 +542,693 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
     $service->calculateAmount($webform_submission->reveal(), $configuration);
   }
 
+  /**
+   * Tests the validatePaymentConfiguration method with valid configuration.
+   *
+   * @covers ::validatePaymentConfiguration
+   */
+  public function testValidatePaymentConfigurationValid() {
+    // Create a mock config object.
+    $config = $this->prophesize(ImmutableConfig::class);
+    $config->get('gov_pay__apikey')->willReturn('test-api-key');
+
+    // Configure the config factory to return our mock config.
+    $this->configFactory->get('govuk_pay.settings')->willReturn($config->reveal());
+
+    // Create a service with necessary mocks.
+    $service = $this->createMockService([]);
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('validatePaymentConfiguration');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $method->invoke($service);
+    // If we get here without an exception, the test passes.
+    $this->assertTrue(TRUE);
+  }
+
+  /**
+   * Tests the validatePaymentConfiguration method with missing API key.
+   *
+   * @covers ::validatePaymentConfiguration
+   */
+  public function testValidatePaymentConfigurationMissingApiKey() {
+    // Create a mock config object with empty API key.
+    $config = $this->prophesize(ImmutableConfig::class);
+    $config->get('gov_pay__apikey')->willReturn('');
+
+    // Configure the config factory to return our mock config.
+    $this->configFactory->get('govuk_pay.settings')->willReturn($config->reveal());
+
+    // Create a service with necessary mocks.
+    $service = $this->createMockService([]);
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('validatePaymentConfiguration');
+    $method->setAccessible(TRUE);
+
+    // Expect an exception to be thrown.
+    $this->expectException(\RuntimeException::class);
+    $this->expectExceptionMessage('GOV.UK Pay API key is not configured');
+
+    // Call the method under test.
+    $method->invoke($service);
+  }
+
+  /**
+   * Tests the processPaymentDescription method.
+   *
+   * @covers ::processPaymentDescription
+   */
+  public function testProcessPaymentDescription() {
+    // Set up test data.
+    $configuration = [
+      'payment_for' => 'Test payment for [webform_submission:values:name]',
+    ];
+
+    // Set up mocks.
+    $webform = $this->prophesize(WebformInterface::class);
+    $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
+
+    // Create a service with mocked methods.
+    $service = $this->createMockService(['replaceTokens']);
+
+    // Mock the replaceTokens method to return a processed description.
+    $service->expects($this->once())
+      ->method('replaceTokens')
+      ->with('Test payment for [webform_submission:values:name]', $webform_submission->reveal(), FALSE)
+      ->willReturn('Test payment for John Doe');
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('processPaymentDescription');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $result = $method->invokeArgs($service, [
+      $configuration,
+      $webform_submission->reveal(),
+      $webform->reveal(),
+    ]);
+
+    // Assert the result.
+    $this->assertEquals('Test payment for John Doe', $result);
+  }
+
+  /**
+   * Tests the processPaymentDescription method with fallback to webform label.
+   *
+   * @covers ::processPaymentDescription
+   */
+  public function testProcessPaymentDescriptionFallback() {
+    // Set up test data with empty payment_for.
+    $configuration = [];
+
+    // Set up mocks.
+    $webform = $this->prophesize(WebformInterface::class);
+    $webform->label()->willReturn('Donation Form');
+    $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
+
+    // Create a service with mocked methods.
+    $service = $this->createMockService(['replaceTokens']);
+
+    // Mock the replaceTokens method to return an empty string.
+    $service->expects($this->once())
+      ->method('replaceTokens')
+      ->willReturn('');
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('processPaymentDescription');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $result = $method->invokeArgs($service, [
+      $configuration,
+      $webform_submission->reveal(),
+      $webform->reveal(),
+    ]);
+
+    // Assert the result.
+    $this->assertEquals('Donation Form', $result);
+  }
+
+  /**
+   * Tests the processPaymentDescription method with truncation.
+   *
+   * @covers ::processPaymentDescription
+   */
+  public function testProcessPaymentDescriptionTruncation() {
+    // Set up test data with a very long description.
+    $configuration = [
+      'payment_for' => str_repeat('A', 300),
+    ];
+
+    // Set up mocks.
+    $webform = $this->prophesize(WebformInterface::class);
+    $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
+
+    // Create a service with mocked methods.
+    $service = $this->createMockService(['replaceTokens']);
+
+    // Mock the replaceTokens method to return the long string.
+    $service->expects($this->once())
+      ->method('replaceTokens')
+      ->with(str_repeat('A', 300), $webform_submission->reveal(), FALSE)
+      ->willReturn(str_repeat('A', 300));
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('processPaymentDescription');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $result = $method->invokeArgs($service, [
+      $configuration,
+      $webform_submission->reveal(),
+      $webform->reveal(),
+    ]);
+
+    // Assert the result is truncated to 254 characters.
+    $this->assertEquals(254, strlen($result));
+    $this->assertEquals(str_repeat('A', 251) . '...', $result);
+  }
+
+  /**
+   * Tests the processPaymentReference method.
+   *
+   * @covers ::processPaymentReference
+   */
+  public function testProcessPaymentReference() {
+    // Set up test data.
+    $configuration = [
+      'payment_reference' => 'REF-[webform_submission:sid]',
+    ];
+
+    // Set up mocks.
+    $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
+
+    // Create a service with mocked methods.
+    $service = $this->createMockService(['replaceTokens']);
+
+    // Mock the replaceTokens method to return a processed reference.
+    $service->expects($this->once())
+      ->method('replaceTokens')
+      ->with('REF-[webform_submission:sid]', $webform_submission->reveal(), FALSE)
+      ->willReturn('REF-123');
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('processPaymentReference');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $result = $method->invokeArgs($service, [
+      $configuration,
+      $webform_submission->reveal(),
+    ]);
+
+    // Assert the result.
+    $this->assertEquals('REF-123', $result);
+  }
+
+  /**
+   * Tests the processPaymentReference method with fallback to global reference.
+   *
+   * @covers ::processPaymentReference
+   */
+  public function testProcessPaymentReferenceFallback() {
+    // Set up test data with empty payment_reference.
+    $configuration = [];
+
+    // Set up mocks.
+    $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
+
+    // Create mock config.
+    $config = $this->prophesize(ImmutableConfig::class);
+    $config->get('gov_pay__reference')->willReturn('GLOBAL-REF');
+
+    // Configure the config factory to return our mock config.
+    $this->configFactory->get('govuk_pay.settings')->willReturn($config->reveal());
+
+    // Create a service with mocked methods.
+    $service = $this->createMockService(['replaceTokens']);
+
+    // Mock the replaceTokens method to return an empty string.
+    $service->expects($this->once())
+      ->method('replaceTokens')
+      ->willReturn('');
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('processPaymentReference');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $result = $method->invokeArgs($service, [
+      $configuration,
+      $webform_submission->reveal(),
+    ]);
+
+    // Assert the result.
+    $this->assertEquals('GLOBAL-REF', $result);
+  }
+
+  /**
+   * Tests the processPaymentReference method with missing reference.
+   *
+   * @covers ::processPaymentReference
+   */
+  public function testProcessPaymentReferenceMissing() {
+    // Set up test data with empty payment_reference.
+    $configuration = [];
+
+    // Set up mocks.
+    $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
+
+    // Create mock config with empty reference.
+    $config = $this->prophesize(ImmutableConfig::class);
+    $config->get('gov_pay__reference')->willReturn('');
+
+    // Configure the config factory to return our mock config.
+    $this->configFactory->get('govuk_pay.settings')->willReturn($config->reveal());
+
+    // Create a service with mocked methods.
+    $service = $this->createMockService(['replaceTokens']);
+
+    // Mock the replaceTokens method to return an empty string.
+    $service->expects($this->once())
+      ->method('replaceTokens')
+      ->willReturn('');
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('processPaymentReference');
+    $method->setAccessible(TRUE);
+
+    // Expect an exception to be thrown.
+    $this->expectException(\RuntimeException::class);
+    $this->expectExceptionMessage('GOV.UK Pay reference is not configured');
+
+    // Call the method under test.
+    $method->invokeArgs($service, [
+      $configuration,
+      $webform_submission->reveal(),
+    ]);
+  }
+
+  /**
+   * Tests the storePaymentData method.
+   *
+   * @covers ::storePaymentData
+   */
+  public function testStorePaymentData() {
+    // Set up test data.
+    $uuid = 'test-uuid';
+    $webform_id = 'test_webform';
+    $submission_id = '123';
+
+    // Expected payment data to be stored.
+    $expected_payment_data = [
+      'uuid' => $uuid,
+      'webform_id' => $webform_id,
+      'submission_id' => $submission_id,
+    ];
+
+    // Create a service with mocked methods.
+    $service = $this->createMockService(['setPaymentData']);
+
+    // Mock the setPaymentData method to verify it's called with the right data.
+    $service->expects($this->once())
+      ->method('setPaymentData')
+      ->with($expected_payment_data);
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('storePaymentData');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $method->invokeArgs($service, [$uuid, $webform_id, $submission_id]);
+  }
+
+  /**
+   * Tests the handlePaymentRedirect method with a missing URL.
+   *
+   * @covers ::handlePaymentRedirect
+   */
+  public function testHandlePaymentRedirectMissingUrl() {
+    // Create a mock payment response.
+    $payment_response = $this->createMock('Swagger\Client\Model\CreatePaymentResult');
+
+    // Create a mock PaymentLinks object with no next_url.
+    $links = $this->createMock('Swagger\Client\Model\PaymentLinks');
+    $links->expects($this->once())
+      ->method('getNextUrl')
+      ->willReturn(NULL);
+
+    // Set up the payment response to return the links.
+    $payment_response->expects($this->once())
+      ->method('getLinks')
+      ->willReturn($links);
+
+    // Create a service with mocked dependencies.
+    $service = $this->createMockService([]);
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('handlePaymentRedirect');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $result = $method->invoke($service, $payment_response);
+
+    // Assert the result is FALSE.
+    $this->assertFalse($result);
+  }
+
+  /**
+   * Tests the processMetadata method.
+   *
+   * @covers ::processMetadata
+   */
+  public function testProcessMetadata() {
+    // Create configuration with metadata.
+    $configuration = [
+      'metadata' => [
+        [
+          'key' => 'webform_id',
+          'value' => 'test_webform',
+        ],
+        [
+          'key' => 'submission_id',
+          'value' => '[webform_submission:sid]',
+        ],
+        [
+          'key' => 'user_id',
+          'value' => '[current-user:uid]',
+        ],
+        [
+          'key' => '',
+          'value' => 'empty_key',
+        ],
+        [
+          'key' => 'empty_value',
+          'value' => '',
+        ],
+      ],
+    ];
+
+    // Create a mock webform submission.
+    $webform_submission = $this->createMock(WebformSubmissionInterface::class);
+
+    // Create a service with mocked dependencies.
+    $service = $this->createPartialMock(GovUkPayWebformService::class, ['replaceTokens']);
+
+    // Set up the replaceTokens method to return expected values.
+    $service->expects($this->any())
+      ->method('replaceTokens')
+      ->willReturnCallback(function ($text, $submission, $plain_text = FALSE) {
+        if ($text === 'webform_id') {
+          return 'webform_id';
+        }
+        elseif ($text === 'test_webform') {
+          return 'test_webform';
+        }
+        elseif ($text === 'submission_id') {
+          return 'submission_id';
+        }
+        elseif ($text === '[webform_submission:sid]') {
+          return '123';
+        }
+        elseif ($text === 'user_id') {
+          return 'user_id';
+        }
+        elseif ($text === '[current-user:uid]') {
+          return '456';
+        }
+        elseif ($text === '') {
+          return '';
+        }
+        elseif ($text === 'empty_key') {
+          return 'empty_key';
+        }
+        elseif ($text === 'empty_value') {
+          return 'empty_value';
+        }
+        return $text;
+      });
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('processMetadata');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $result = $method->invoke($service, $configuration, $webform_submission);
+
+    // Assert the metadata is processed correctly.
+    $this->assertEquals([
+      'webform_id' => 'test_webform',
+      'submission_id' => '123',
+      'user_id' => '456',
+    ], $result);
+  }
+
+  /**
+   * Tests the processEmailField method.
+   *
+   * @covers ::processEmailField
+   */
+  public function testProcessEmailField() {
+    // Set up test data.
+    $configuration = [
+      'fields' => [
+        'email' => '[webform_submission:values:email]',
+      ],
+    ];
+
+    // Set up mocks.
+    $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
+
+    // Create a service with mocked methods.
+    $service = $this->createMockService(['replaceTokens']);
+
+    // Mock the replaceTokens method to return an email.
+    $service->expects($this->once())
+      ->method('replaceTokens')
+      ->with('[webform_submission:values:email]', $webform_submission->reveal(), TRUE)
+      ->willReturn('test@example.com');
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('processEmailField');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $result = $method->invokeArgs($service, [
+      $configuration,
+      $webform_submission->reveal(),
+    ]);
+
+    // Assert the result.
+    $this->assertEquals('test@example.com', $result);
+  }
+
+  /**
+   * Tests the processEmailField method with missing email.
+   *
+   * @covers ::processEmailField
+   */
+  public function testProcessEmailFieldMissing() {
+    // Set up test data with no email field.
+    $configuration = [
+      'fields' => [],
+    ];
+
+    // Set up mocks.
+    $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
+
+    // Create a service with necessary mocks.
+    $service = $this->createMockService([]);
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('processEmailField');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $result = $method->invokeArgs($service, [
+      $configuration,
+      $webform_submission->reveal(),
+    ]);
+
+    // Assert the result is NULL.
+    $this->assertNull($result);
+  }
+
+  /**
+   * Tests the processCardholderDetails method with full details.
+   *
+   * @covers ::processCardholderDetails
+   */
+  public function testProcessCardholderDetailsFull() {
+    // Create configuration with cardholder details.
+    $configuration = [
+      'fields' => [
+        'name' => '[webform_submission:values:name]',
+        'address' => [
+          'line1' => '[webform_submission:values:address_line1]',
+          'line2' => '[webform_submission:values:address_line2]',
+          'postcode' => '[webform_submission:values:postcode]',
+          'city' => '[webform_submission:values:city]',
+          'country' => 'GB',
+        ],
+      ],
+    ];
+
+    // Create a mock webform submission.
+    $webform_submission = $this->createMock(WebformSubmissionInterface::class);
+
+    // Create a service with mocked dependencies.
+    $service = $this->createPartialMock(GovUkPayWebformService::class, ['replaceTokens']);
+
+    // Set up the replaceTokens method to return expected values.
+    $service->expects($this->any())
+      ->method('replaceTokens')
+      ->willReturnCallback(function ($text, $submission, $plain_text = FALSE) {
+        if ($text === '[webform_submission:values:name]') {
+          return 'John Doe';
+        }
+        elseif ($text === '[webform_submission:values:address_line1]') {
+          return '123 Main St';
+        }
+        elseif ($text === '[webform_submission:values:address_line2]') {
+          return 'Apt 4B';
+        }
+        elseif ($text === '[webform_submission:values:postcode]') {
+          return 'SW1A 1AA';
+        }
+        elseif ($text === '[webform_submission:values:city]') {
+          return 'London';
+        }
+        elseif ($text === 'GB') {
+          return 'GB';
+        }
+        return $text;
+      });
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('processCardholderDetails');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $result = $method->invoke($service, $configuration, $webform_submission);
+
+    // Assert the cardholder details are processed correctly.
+    $expected = [
+      'cardholder_name' => 'John Doe',
+      'billing_address' => [
+        'line1' => '123 Main St',
+        'line2' => 'Apt 4B',
+        'postcode' => 'SW1A 1AA',
+        'city' => 'London',
+        'country' => 'GB',
+      ],
+    ];
+    $this->assertEquals($expected, $result);
+  }
+
+  /**
+   * Tests the processCardholderDetails method with name only.
+   *
+   * @covers ::processCardholderDetails
+   */
+  public function testProcessCardholderDetailsNameOnly() {
+    // Set up test data with name only.
+    $configuration = [
+      'fields' => [
+        'name' => '[webform_submission:values:name]',
+        'address' => [],
+      ],
+    ];
+
+    // Create a mock webform submission.
+    $webform_submission = $this->createMock(WebformSubmissionInterface::class);
+
+    // Create a service with mocked dependencies.
+    $service = $this->createPartialMock(GovUkPayWebformService::class, ['replaceTokens']);
+
+    // Set up the replaceTokens method to return expected values.
+    $service->expects($this->any())
+      ->method('replaceTokens')
+      ->willReturnCallback(function ($text, $submission, $plain_text = FALSE) {
+        if ($text === '[webform_submission:values:name]') {
+          return 'John Doe';
+        }
+        return $text;
+      });
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('processCardholderDetails');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $result = $method->invoke($service, $configuration, $webform_submission);
+
+    // Assert the result.
+    $expected = [
+      'cardholder_name' => 'John Doe',
+    ];
+    $this->assertEquals($expected, $result);
+  }
+
+  /**
+   * Tests the processCardholderDetails method with no details.
+   *
+   * @covers ::processCardholderDetails
+   */
+  public function testProcessCardholderDetailsNone() {
+    // Set up test data with no cardholder details.
+    $configuration = [
+      'fields' => [],
+    ];
+
+    // Create a mock webform submission.
+    $webform_submission = $this->createMock(WebformSubmissionInterface::class);
+
+    // Create a service with necessary mocks.
+    $service = $this->createMockService([]);
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('processCardholderDetails');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $result = $method->invoke($service, $configuration, $webform_submission);
+
+    // Assert the result is NULL.
+    $this->assertNull($result);
+  }
+
+  /**
+   * Helper method to mock a constructor.
+   *
+   * @param string $class
+   *   The class name.
+   * @param callable $callback
+   *   The callback to use.
+   */
+  protected function mockConstructor($class, $callback) {
+    // This is a placeholder. In a real test, you would use a library like
+    // php-mock or similar to mock constructors.
+    // For our purposes, we're just pretending this works.
+  }
+
 }
