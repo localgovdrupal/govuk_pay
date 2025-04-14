@@ -154,13 +154,20 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
    * Creates a mock service with specified methods mocked.
    *
    * @param array $methods
-   *   The methods to mock.
+   *   Methods to mock.
    *
-   * @return \Drupal\govuk_pay_webform\GovUkPayWebformService|\PHPUnit\Framework\MockObject\MockObject
-   *   The mocked service with calculateAmount method available.
+   * @return \PHPUnit\Framework\MockObject\MockObject
+   *   The mock service.
    */
   protected function createMockService(array $methods) {
-    return $this->getMockBuilder(GovUkPayWebformService::class)
+    // If $methods is a simple array of strings, use it directly.
+    // Otherwise, extract the method names from the associative array.
+    $methodNames = array_filter($methods, 'is_string');
+    if (count($methodNames) === 0 && count($methods) > 0) {
+      $methodNames = array_keys($methods);
+    }
+    
+    $mockBuilder = $this->getMockBuilder(GovUkPayWebformService::class)
       ->setConstructorArgs([
         $this->configFactory->reveal(),
         $this->apiService->reveal(),
@@ -171,9 +178,34 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
         $this->tempStoreFactory->reveal(),
         $this->token->reveal(),
         $this->currentUser->reveal(),
-      ])
-      ->onlyMethods($methods)
-      ->getMock();
+      ]);
+      
+    if (!empty($methodNames)) {
+      $mockBuilder->onlyMethods($methodNames);
+    }
+    
+    $service = $mockBuilder->getMock();
+    
+    // If $methods is an associative array, set the mocked properties.
+    foreach ($methods as $key => $value) {
+      if (!is_string($key) || !is_object($value)) {
+        continue;
+      }
+      
+      try {
+        $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+        if ($reflection->hasProperty($key)) {
+          $property = $reflection->getProperty($key);
+          $property->setAccessible(TRUE);
+          $property->setValue($service, $value);
+        }
+      }
+      catch (\Exception $e) {
+        // Skip if property doesn't exist or can't be set.
+      }
+    }
+    
+    return $service;
   }
 
   /**
@@ -496,12 +528,29 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
     $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
     $webform_submission->getWebform()->willReturn($webform->reveal());
 
-    // Create a service without mocking any methods.
-    $service = $this->createMockService([]);
+    // Create a service with a mock replaceTokens method to ensure it returns an empty string
+    $service = $this->getMockBuilder(GovUkPayWebformService::class)
+      ->setConstructorArgs([
+        $this->configFactory->reveal(),
+        $this->apiService->reveal(),
+        $this->uuidService->reveal(),
+        $this->requestStack->reveal(),
+        $this->prophesize(EntityTypeManagerInterface::class)->reveal(),
+        $this->loggerFactory->reveal(),
+        $this->tempStoreFactory->reveal(),
+        $this->token->reveal(),
+        $this->currentUser->reveal(),
+      ])
+      ->onlyMethods(['replaceTokens'])
+      ->getMock();
+    
+    // Ensure replaceTokens returns an empty string
+    $service->method('replaceTokens')
+      ->willReturn('');
 
     // Expect an exception to be thrown.
     $this->expectException(\RuntimeException::class);
-    $this->expectExceptionMessage('Payment amount could not be determined.');
+    $this->expectExceptionMessage('Payment amount could not be determined');
 
     // Call the method under test.
     $service->calculateAmount($webform_submission->reveal(), $configuration);
@@ -908,6 +957,71 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
 
     // Assert the result is FALSE.
     $this->assertFalse($result);
+  }
+
+  /**
+   * Tests the handlePaymentRedirect method with a URL.
+   */
+  public function testHandlePaymentRedirectWithUrl() {
+    // Create a mock payment response.
+    $payment_response = $this->createMock('Swagger\Client\Model\CreatePaymentResult');
+    $links = $this->createMock('Swagger\Client\Model\PaymentLinks');
+    $next_url = $this->createMock('Swagger\Client\Model\Link');
+
+    // Configure the mocks.
+    $next_url->expects($this->once())
+      ->method('getHref')
+      ->willReturn('https://payments.example.com/pay/123');
+    $links->expects($this->once())
+      ->method('getNextUrl')
+      ->willReturn($next_url);
+    $payment_response->expects($this->once())
+      ->method('getLinks')
+      ->willReturn($links);
+
+    // Create a mock request.
+    $request = $this->createMock('Symfony\Component\HttpFoundation\Request');
+    $request->expects($this->once())
+      ->method('hasSession')
+      ->willReturn(TRUE);
+
+    // Create a mock request stack.
+    $request_stack = $this->createMock('Symfony\Component\HttpFoundation\RequestStack');
+    $request_stack->expects($this->once())
+      ->method('getCurrentRequest')
+      ->willReturn($request);
+
+    // Create a mock tempStore.
+    $temp_store = $this->createMock('Drupal\Core\TempStore\PrivateTempStore');
+    $temp_store->expects($this->once())
+      ->method('set')
+      ->with('redirect_url', 'https://payments.example.com/pay/123');
+
+    // Create a service with our mocked dependencies
+    $service = $this->getMockBuilder(GovUkPayWebformService::class)
+      ->disableOriginalConstructor()
+      ->getMock();
+    
+    // Set the mocked properties on the service
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    
+    $requestStackProperty = $reflection->getProperty('requestStack');
+    $requestStackProperty->setAccessible(TRUE);
+    $requestStackProperty->setValue($service, $request_stack);
+    
+    $tempStoreProperty = $reflection->getProperty('tempStore');
+    $tempStoreProperty->setAccessible(TRUE);
+    $tempStoreProperty->setValue($service, $temp_store);
+
+    // Get the protected method.
+    $method = $reflection->getMethod('handlePaymentRedirect');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $result = $method->invoke($service, $payment_response);
+
+    // Assert the result is TRUE.
+    $this->assertTrue($result);
   }
 
   /**

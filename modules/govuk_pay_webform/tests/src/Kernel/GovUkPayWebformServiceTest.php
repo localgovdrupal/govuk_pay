@@ -12,6 +12,7 @@ use Swagger\Client\Model\CreatePaymentResult;
 use Psr\Log\LoggerInterface;
 use Drupal\govuk_pay_webform\GovUkPayWebformService;
 use Drupal\Core\Routing\TrustedRedirectResponse;
+use Drupal\Core\TempStore\PrivateTempStore;
 
 /**
  * Tests the GOV.UK Pay Webform service.
@@ -271,40 +272,20 @@ class GovUkPayWebformServiceTest extends GovUkPayWebformTestBase {
     $requestStackProperty->setAccessible(TRUE);
     $requestStackProperty->setValue($this->paymentService, $request_stack->reveal());
 
-    // Create a mock response to return from our test method.
-    $mockResponse = new TrustedRedirectResponse('https://payments.example.com/pay/123');
+    // Set up the tempStore to expect a set call.
+    $tempStore = $this->prophesize(\Drupal\Core\TempStore\PrivateTempStore::class);
+    $tempStore->set('redirect_url', 'https://payments.example.com/pay/123')->shouldBeCalled();
 
-    // Use reflection to temporarily replace the method.
-    $createRedirectMethod = $reflection->getMethod('createRedirectResponse');
-    $createRedirectMethod->setAccessible(TRUE);
-
-    // We can't actually replace the method at runtime in PHP, so we'll use a different approach.
-    // Instead, we'll create a test double that extends the service class.
-    $testDouble = $this->getMockBuilder(get_class($this->paymentService))
-      ->disableOriginalConstructor()
-      ->setMethods(['createRedirectResponse'])
-      ->getMock();
-
-    // Configure the mock to return our mock response.
-    $testDouble->method('createRedirectResponse')
-      ->willReturn($mockResponse);
-
-    // Copy all properties from the original service to our test double.
-    foreach ($reflection->getProperties() as $property) {
-      if (!$property->isStatic()) {
-        $property->setAccessible(TRUE);
-        $value = $property->getValue($this->paymentService);
-
-        $property->setValue($testDouble, $value);
-      }
-    }
+    // Replace the tempStore in the service.
+    $tempStoreProperty = $reflection->getProperty('tempStore');
+    $tempStoreProperty->setAccessible(TRUE);
+    $tempStoreProperty->setValue($this->paymentService, $tempStore->reveal());
 
     // Test normal session handling.
-    $result = $handlePaymentMethod->invoke($testDouble, $payment_response->reveal());
-
-    // Verify the result is a TrustedRedirectResponse with the correct URL.
-    $this->assertSame($mockResponse, $result);
-    $this->assertEquals('https://payments.example.com/pay/123', $result->getTargetUrl());
+    $result = $handlePaymentMethod->invoke($this->paymentService, $payment_response->reveal());
+    
+    // Verify the result is TRUE.
+    $this->assertTrue($result);
 
     // Test 2: Session error handling
     // Create a mock session that throws an exception.
@@ -321,26 +302,30 @@ class GovUkPayWebformServiceTest extends GovUkPayWebformTestBase {
     $request_stack = $this->prophesize(RequestStack::class);
     $request_stack->getCurrentRequest()->willReturn($request->reveal());
 
-    // Replace the request stack in the test double.
-    $requestStackProperty->setValue($testDouble, $request_stack->reveal());
+    // Replace the request stack in the service.
+    $requestStackProperty->setValue($this->paymentService, $request_stack->reveal());
 
     // Set up the logger to expect a warning.
     $logger = $this->prophesize(LoggerInterface::class);
     $logger->warning('Session error during payment redirect: @message', ['@message' => 'Session error'])->shouldBeCalled();
 
-    // Replace the logger in the test double.
+    // Replace the logger in the service.
     $loggerProperty = $reflection->getProperty('logger');
     $loggerProperty->setAccessible(TRUE);
-    $loggerProperty->setValue($testDouble, $logger->reveal());
+    $loggerProperty->setValue($this->paymentService, $logger->reveal());
 
+    // We're expecting an exception to be caught internally, not thrown to the test
     // Test session error handling.
-    $result = $handlePaymentMethod->invoke($testDouble, $payment_response->reveal());
-
-    // Verify that despite the session error, we still get a redirect response.
-    $this->assertSame($mockResponse, $result);
-    $this->assertEquals('https://payments.example.com/pay/123', $result->getTargetUrl());
+    try {
+      $result = $handlePaymentMethod->invoke($this->paymentService, $payment_response->reveal());
+      
+      // Verify that despite the session error, we still get TRUE as the result.
+      $this->assertTrue($result);
+    }
+    catch (\RuntimeException $e) {
+      $this->fail('Exception should be caught internally, not thrown: ' . $e->getMessage());
+    }
   }
-
 }
 
 /**
