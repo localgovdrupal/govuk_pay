@@ -452,24 +452,57 @@ class GovUkPayWebformService {
    * @param \Swagger\Client\Model\CreatePaymentResult $payment_response
    *   The payment response from the GOV.UK Pay API.
    *
-   * @return bool
-   *   TRUE if redirect was initiated, FALSE otherwise.
+   * @return bool|\Drupal\Core\Routing\TrustedRedirectResponse
+   *   The redirect response if redirect was initiated, FALSE otherwise.
    */
   protected function handlePaymentRedirect($payment_response) {
     $links = $payment_response->getLinks();
     $nextUrl = $links->getNextUrl();
 
     if (!is_null($nextUrl)) {
-      $response = new TrustedRedirectResponse($nextUrl->getHref(), 302);
       $request = $this->requestStack->getCurrentRequest();
-      // Ensure a session is initialised for anonymous users.
-      $request->getSession()->save();
-      $response->prepare($request);
-      $response->send();
-      return TRUE;
+
+      // Initialize the session before creating the response.
+      try {
+        // Only try to save the session if it's already started.
+        if ($request->hasSession() && $request->getSession()->isStarted()) {
+          $request->getSession()->save();
+        }
+      }
+      catch (\Exception $e) {
+        // Log but continue if there's a session error.
+        $this->logger->warning('Session error during payment redirect: @message', ['@message' => $e->getMessage()]);
+      }
+
+      // Create the redirect response.
+      $response = $this->createRedirectResponse($nextUrl->getHref(), $request);
+
+      // In a normal request context, send the response.
+      if (php_sapi_name() != 'cli') {
+        $response->send();
+      }
+
+      return $response;
     }
 
     return FALSE;
+  }
+
+  /**
+   * Creates a redirect response.
+   *
+   * @param string $url
+   *   The URL to redirect to.
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The current request.
+   *
+   * @return \Drupal\Core\Routing\TrustedRedirectResponse
+   *   The prepared redirect response.
+   */
+  protected function createRedirectResponse($url, $request) {
+    $response = new TrustedRedirectResponse($url, 302);
+    $response->prepare($request);
+    return $response;
   }
 
   /**
