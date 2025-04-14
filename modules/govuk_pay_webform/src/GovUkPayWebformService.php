@@ -452,8 +452,8 @@ class GovUkPayWebformService {
    * @param \Swagger\Client\Model\CreatePaymentResult $payment_response
    *   The payment response from the GOV.UK Pay API.
    *
-   * @return bool
-   *   TRUE if redirect was initiated, FALSE otherwise.
+   * @return bool|\Drupal\Core\Routing\TrustedRedirectResponse
+   *   The redirect response if redirect was initiated, FALSE otherwise.
    */
   protected function handlePaymentRedirect($payment_response) {
     $links = $payment_response->getLinks();
@@ -474,14 +474,35 @@ class GovUkPayWebformService {
         $this->logger->warning('Session error during payment redirect: @message', ['@message' => $e->getMessage()]);
       }
 
-      // Create and send the redirect response.
-      $response = new TrustedRedirectResponse($nextUrl->getHref(), 302);
-      $response->prepare($request);
-      $response->send();
-      return TRUE;
+      // Create the redirect response.
+      $response = $this->createRedirectResponse($nextUrl->getHref(), $request);
+
+      // In a normal request context, send the response.
+      if (php_sapi_name() != 'cli') {
+        $response->send();
+      }
+
+      return $response;
     }
 
     return FALSE;
+  }
+
+  /**
+   * Creates a redirect response.
+   *
+   * @param string $url
+   *   The URL to redirect to.
+   * @param \Symfony\Component\HttpFoundation\Request $request
+   *   The current request.
+   *
+   * @return \Drupal\Core\Routing\TrustedRedirectResponse
+   *   The prepared redirect response.
+   */
+  protected function createRedirectResponse($url, $request) {
+    $response = new TrustedRedirectResponse($url, 302);
+    $response->prepare($request);
+    return $response;
   }
 
   /**
