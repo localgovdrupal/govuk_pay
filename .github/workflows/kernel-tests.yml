@@ -76,6 +76,17 @@ jobs:
         cd drupal
         vendor/bin/drush en -y govuk_pay govuk_pay_webform token webform
     
+    - name: Verify PHPUnit configuration
+      run: |
+        cd drupal
+        ls -la web/core/
+        if [ -f "web/core/phpunit.xml.dist" ]; then
+          echo "PHPUnit configuration file exists"
+        else
+          echo "PHPUnit configuration file not found, checking other locations..."
+          find . -name "phpunit.xml.dist"
+        fi
+    
     - name: Run Kernel Tests
       run: |
         cd drupal
@@ -84,7 +95,7 @@ jobs:
         SIMPLETEST_DB=sqlite://${{ github.workspace }}/drupal/web/sites/default/files/db.sqlite \
         SIMPLETEST_BASE_URL=http://localhost:8080 \
         BROWSERTEST_OUTPUT_DIRECTORY=${{ github.workspace }}/drupal/web/sites/simpletest/browser_output \
-        vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/contrib/govuk_pay/modules/govuk_pay_webform/tests/src/Kernel
+        vendor/bin/phpunit -c ./web/core/phpunit.xml.dist ./web/modules/contrib/govuk_pay/modules/govuk_pay_webform/tests/src/Kernel
     
     - name: Run GOV.UK Pay Core Kernel Tests
       run: |
@@ -92,7 +103,7 @@ jobs:
         SIMPLETEST_DB=sqlite://${{ github.workspace }}/drupal/web/sites/default/files/db.sqlite \
         SIMPLETEST_BASE_URL=http://localhost:8080 \
         BROWSERTEST_OUTPUT_DIRECTORY=${{ github.workspace }}/drupal/web/sites/simpletest/browser_output \
-        vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/contrib/govuk_pay/tests/src/Kernel
+        vendor/bin/phpunit -c ./web/core/phpunit.xml.dist ./web/modules/contrib/govuk_pay/tests/src/Kernel
     
     - name: Upload test artifacts
       if: failure()
