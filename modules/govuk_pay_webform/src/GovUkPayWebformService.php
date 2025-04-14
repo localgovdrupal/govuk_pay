@@ -223,7 +223,7 @@ class GovUkPayWebformService {
       throw new \RuntimeException('GOV.UK Pay API key is not configured. This is a required field on /admin/config/govuk_pay/settings.');
     }
 
-    // Validate payment_for is present in configuration
+    // Validate payment_for is present in configuration.
     if (!empty($configuration) && empty($configuration['payment_for'])) {
       throw new \RuntimeException('Missing required payment description (payment_for)');
     }

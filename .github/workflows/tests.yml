@@ -87,7 +87,7 @@ jobs:
     - name: Run Unit Tests
       run: |
         cd drupal
-        ${{ github.workspace }}/drupal/vendor/bin/phpunit -c ${{ github.workspace }}/drupal/web/core/phpunit.xml.dist \
+        ${{ github.workspace }}/drupal/vendor/bin/phpunit -c ${{ github.workspace }}/drupal/web/modules/contrib/govuk_pay/phpunit.xml \
           --group govuk_pay,govuk_pay_webform \
           --testsuite unit
     
@@ -99,7 +99,7 @@ jobs:
         SIMPLETEST_DB=sqlite://localhost/${{ github.workspace }}/drupal/web/sites/default/files/db.sqlite \
         SIMPLETEST_BASE_URL=http://localhost:8080 \
         BROWSERTEST_OUTPUT_DIRECTORY=${{ github.workspace }}/drupal/web/sites/simpletest/browser_output \
-        ${{ github.workspace }}/drupal/vendor/bin/phpunit -c ${{ github.workspace }}/drupal/web/core/phpunit.xml.dist \
+        ${{ github.workspace }}/drupal/vendor/bin/phpunit -c ${{ github.workspace }}/drupal/web/modules/contrib/govuk_pay/phpunit.xml \
           --group govuk_pay,govuk_pay_webform \
           --testsuite kernel
     
