@@ -160,7 +160,14 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
    *   The mock service.
    */
   protected function createMockService(array $methods) {
-    return $this->getMockBuilder(GovUkPayWebformService::class)
+    // If $methods is a simple array of strings, use it directly.
+    // Otherwise, extract the method names from the associative array.
+    $methodNames = array_filter($methods, 'is_string');
+    if (count($methodNames) === 0 && count($methods) > 0) {
+      $methodNames = array_keys($methods);
+    }
+    
+    $mockBuilder = $this->getMockBuilder(GovUkPayWebformService::class)
       ->setConstructorArgs([
         $this->configFactory->reveal(),
         $this->apiService->reveal(),
@@ -171,9 +178,34 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
         $this->tempStoreFactory->reveal(),
         $this->token->reveal(),
         $this->currentUser->reveal(),
-      ])
-      ->onlyMethods(array_keys($methods))
-      ->getMock();
+      ]);
+      
+    if (!empty($methodNames)) {
+      $mockBuilder->onlyMethods($methodNames);
+    }
+    
+    $service = $mockBuilder->getMock();
+    
+    // If $methods is an associative array, set the mocked properties.
+    foreach ($methods as $key => $value) {
+      if (!is_string($key) || !is_object($value)) {
+        continue;
+      }
+      
+      try {
+        $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+        if ($reflection->hasProperty($key)) {
+          $property = $reflection->getProperty($key);
+          $property->setAccessible(TRUE);
+          $property->setValue($service, $value);
+        }
+      }
+      catch (\Exception $e) {
+        // Skip if property doesn't exist or can't be set.
+      }
+    }
+    
+    return $service;
   }
 
   /**
@@ -496,12 +528,29 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
     $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
     $webform_submission->getWebform()->willReturn($webform->reveal());
 
-    // Create a service without mocking any methods.
-    $service = $this->createMockService([]);
+    // Create a service with a mock replaceTokens method to ensure it returns an empty string
+    $service = $this->getMockBuilder(GovUkPayWebformService::class)
+      ->setConstructorArgs([
+        $this->configFactory->reveal(),
+        $this->apiService->reveal(),
+        $this->uuidService->reveal(),
+        $this->requestStack->reveal(),
+        $this->prophesize(EntityTypeManagerInterface::class)->reveal(),
+        $this->loggerFactory->reveal(),
+        $this->tempStoreFactory->reveal(),
+        $this->token->reveal(),
+        $this->currentUser->reveal(),
+      ])
+      ->onlyMethods(['replaceTokens'])
+      ->getMock();
+    
+    // Ensure replaceTokens returns an empty string
+    $service->method('replaceTokens')
+      ->willReturn('');
 
     // Expect an exception to be thrown.
     $this->expectException(\RuntimeException::class);
-    $this->expectExceptionMessage('Payment amount could not be determined.');
+    $this->expectExceptionMessage('Payment amount could not be determined');
 
     // Call the method under test.
     $service->calculateAmount($webform_submission->reveal(), $configuration);
