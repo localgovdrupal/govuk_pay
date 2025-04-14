@@ -1,0 +1,10 @@
+# Schema for the configuration files of the GOV.UK Pay module.
+
+govuk_pay.settings:
+  type: config_object
+  label: 'GOV.UK Pay settings'
+  mapping:
+    gov_pay__apikey:
+      type: string
+      label: 'GOV.UK Pay API key'
+      description: 'The API key used for authenticating with the GOV.UK Pay service.'
