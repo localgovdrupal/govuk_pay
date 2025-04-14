@@ -11,7 +11,6 @@ use Drupal\Core\Utility\Token;
 use Drupal\Core\Url;
 use Drupal\Core\TempStore\PrivateTempStoreFactory;
 use Drupal\Core\Session\AccountProxyInterface;
-use Drupal\Core\Routing\TrustedRedirectResponse;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
@@ -152,13 +151,8 @@ class GovUkPayWebformService {
    *   Throws exception if payment creation fails.
    */
   public function createPayment(WebformSubmissionInterface $webform_submission, array $configuration) {
-    // Load config for GOV.UK Pay.
-    $config = $this->configFactory->get('govuk_pay.settings');
-
-    // Validate required parameters.
-    if (empty($config->get('gov_pay__apikey'))) {
-      throw new \RuntimeException('GOV.UK Pay API key is not configured. This is a required field on /admin/config/govuk_pay/settings.');
-    }
+    // Validate configuration and required parameters.
+    $this->validatePaymentConfiguration($configuration);
 
     $sid = $webform_submission->id();
     $webform = $webform_submission->getWebform();
@@ -168,6 +162,86 @@ class GovUkPayWebformService {
       throw new \RuntimeException('Payment amount could not be determined.');
     }
 
+    // Process payment description and reference.
+    $payment_for = $this->processPaymentDescription($configuration, $webform_submission, $webform);
+    $payment_reference = $this->processPaymentReference($configuration, $webform_submission);
+
+    // Generate UUID and store payment data in session.
+    $uuid = $this->uuidService->generate();
+    $this->storePaymentData($uuid, $webform->id(), $sid);
+
+    // Create return URL for GOV.UK Pay to redirect back to.
+    $returnUrl = $this->createReturnUrl();
+
+    // Process metadata and cardholder details.
+    $metadata = $this->processMetadata($configuration, $webform_submission);
+    $email = $this->processEmailField($configuration, $webform_submission);
+    $prefilled_cardholder_details = $this->processCardholderDetails($configuration, $webform_submission);
+
+    // Create the payment via API.
+    $payment_response = $this->apiService->createPayment(
+      $amount,
+      $payment_reference,
+      $payment_for,
+      $returnUrl,
+      $metadata,
+      $email,
+      $prefilled_cardholder_details
+    );
+
+    // Create the payment entity.
+    $this->createPaymentEntity(
+      $payment_response,
+      $uuid,
+      $amount,
+      $webform->id(),
+      $sid,
+      $payment_for,
+      $payment_reference,
+    );
+
+    // Handle redirect to GOV.UK Pay.
+    return $this->handlePaymentRedirect($payment_response);
+  }
+
+  /**
+   * Validate payment configuration and required parameters.
+   *
+   * @param array $configuration
+   *   The handler configuration.
+   *
+   * @throws \RuntimeException
+   *   If required configuration is missing.
+   */
+  protected function validatePaymentConfiguration(array $configuration = []) {
+    // Load config for GOV.UK Pay.
+    $config = $this->configFactory->get('govuk_pay.settings');
+
+    // Validate required parameters.
+    if (empty($config->get('gov_pay__apikey'))) {
+      throw new \RuntimeException('GOV.UK Pay API key is not configured. This is a required field on /admin/config/govuk_pay/settings.');
+    }
+
+    // Validate payment_for is present in configuration.
+    if (!empty($configuration) && empty($configuration['payment_for'])) {
+      throw new \RuntimeException('Missing required payment description (payment_for)');
+    }
+  }
+
+  /**
+   * Process the payment description.
+   *
+   * @param array $configuration
+   *   The handler configuration.
+   * @param \Drupal\webform\WebformSubmissionInterface $webform_submission
+   *   The webform submission.
+   * @param \Drupal\webform\WebformInterface $webform
+   *   The webform.
+   *
+   * @return string
+   *   The processed payment description.
+   */
+  protected function processPaymentDescription(array $configuration, WebformSubmissionInterface $webform_submission, $webform) {
     // Process the payment description with token replacement.
     $payment_for = $this->replaceTokens($configuration['payment_for'] ?? '', $webform_submission);
     if (empty($payment_for)) {
@@ -179,35 +253,85 @@ class GovUkPayWebformService {
       $payment_for = substr($payment_for, 0, 251) . '...';
     }
 
-    $uuid = $this->uuidService->generate();
+    return $payment_for;
+  }
 
-    // Create the payment data array to be stored in the session.
-    $payment_data = [
-      'uuid' => $uuid,
-      'webform_id' => $webform->id(),
-      'submission_id' => $sid,
-    ];
-
-    // Store payment data in the session.
-    $this->setPaymentData($payment_data);
-
-    // Create the return URL.
-    $url_object = Url::fromRoute('govuk_pay_webform.confirmation_page', [], ['absolute' => TRUE]);
-    $returnUrl = new Uri($url_object->toString());
-
+  /**
+   * Process the payment reference.
+   *
+   * @param array $configuration
+   *   The handler configuration.
+   * @param \Drupal\webform\WebformSubmissionInterface $webform_submission
+   *   The webform submission.
+   *
+   * @return string
+   *   The processed payment reference.
+   *
+   * @throws \RuntimeException
+   *   If payment reference cannot be determined.
+   */
+  protected function processPaymentReference(array $configuration, WebformSubmissionInterface $webform_submission) {
     // Process payment reference with token replacement.
     $payment_reference = $this->replaceTokens($configuration['payment_reference'] ?? '', $webform_submission);
 
-    // If payment_reference is empty, use the global reference
-    // from settings as fallback.
+    // If payment_reference is empty, use the global reference from settings as fallback.
     if (empty($payment_reference)) {
+      $config = $this->configFactory->get('govuk_pay.settings');
       if (empty($config->get('gov_pay__reference'))) {
         throw new \RuntimeException('GOV.UK Pay reference is not configured. This is a required field on /admin/config/govuk_pay/settings.');
       }
       $payment_reference = $config->get('gov_pay__reference');
     }
 
-    // Process metadata from configuration.
+    return $payment_reference;
+  }
+
+  /**
+   * Store payment data in the session.
+   *
+   * @param string $uuid
+   *   The UUID for the payment.
+   * @param string $webform_id
+   *   The webform ID.
+   * @param string $submission_id
+   *   The submission ID.
+   */
+  protected function storePaymentData($uuid, $webform_id, $submission_id) {
+    // Create the payment data array to be stored in the session.
+    $payment_data = [
+      'uuid' => $uuid,
+      'webform_id' => $webform_id,
+      'submission_id' => $submission_id,
+    ];
+
+    // Store payment data in the session.
+    $this->setPaymentData($payment_data);
+  }
+
+  /**
+   * Create the return URL for GOV.UK Pay.
+   *
+   * @return \GuzzleHttp\Psr7\Uri
+   *   The return URL.
+   */
+  protected function createReturnUrl() {
+    // Create the return URL.
+    $url_object = Url::fromRoute('govuk_pay_webform.confirmation_page', [], ['absolute' => TRUE]);
+    return new Uri($url_object->toString());
+  }
+
+  /**
+   * Process metadata from configuration.
+   *
+   * @param array $configuration
+   *   The handler configuration.
+   * @param \Drupal\webform\WebformSubmissionInterface $webform_submission
+   *   The webform submission.
+   *
+   * @return array
+   *   The processed metadata.
+   */
+  protected function processMetadata(array $configuration, WebformSubmissionInterface $webform_submission) {
     $metadata = [];
     if (!empty($configuration['metadata']) && is_array($configuration['metadata'])) {
       foreach ($configuration['metadata'] as $item) {
@@ -222,13 +346,41 @@ class GovUkPayWebformService {
         }
       }
     }
+    return $metadata;
+  }
 
+  /**
+   * Process the email field from configuration.
+   *
+   * @param array $configuration
+   *   The handler configuration.
+   * @param \Drupal\webform\WebformSubmissionInterface $webform_submission
+   *   The webform submission.
+   *
+   * @return string|null
+   *   The processed email or NULL if not available.
+   */
+  protected function processEmailField(array $configuration, WebformSubmissionInterface $webform_submission) {
     // Process email field with token replacement.
     $email = NULL;
     if (!empty($configuration['fields']['email'])) {
       $email = $this->replaceTokens($configuration['fields']['email'], $webform_submission, TRUE);
     }
+    return $email;
+  }
 
+  /**
+   * Process cardholder details from configuration.
+   *
+   * @param array $configuration
+   *   The handler configuration.
+   * @param \Drupal\webform\WebformSubmissionInterface $webform_submission
+   *   The webform submission.
+   *
+   * @return array|null
+   *   The processed cardholder details or NULL if not available.
+   */
+  protected function processCardholderDetails(array $configuration, WebformSubmissionInterface $webform_submission) {
     // Process prefilled cardholder details.
     $prefilled_cardholder_details = NULL;
     $cardholder_name = NULL;
@@ -290,37 +442,39 @@ class GovUkPayWebformService {
       }
     }
 
-    $payment_response = $this->apiService->createPayment(
-      $amount,
-      $payment_reference,
-      $payment_for,
-      $returnUrl,
-      $metadata,
-      $email,
-      $prefilled_cardholder_details
-    );
+    return $prefilled_cardholder_details;
+  }
 
-    // Create the payment entity and get the next URL from the response.
-    $this->createPaymentEntity(
-      $payment_response,
-      $uuid,
-      $amount,
-      $webform->id(),
-      $sid,
-      $payment_for,
-      $payment_reference,
-    );
-
+  /**
+   * Handle the redirect to GOV.UK Pay.
+   *
+   * @param \Swagger\Client\Model\CreatePaymentResult $payment_response
+   *   The payment response from the GOV.UK Pay API.
+   *
+   * @return bool
+   *   TRUE if redirect URL was stored for later processing, FALSE otherwise.
+   */
+  protected function handlePaymentRedirect($payment_response) {
     $links = $payment_response->getLinks();
-    $nextUrl = $links['next_url']->getHref() ?? NULL;
+    $nextUrl = $links->getNextUrl();
 
     if (!is_null($nextUrl)) {
-      $response = new TrustedRedirectResponse($nextUrl, 302);
       $request = $this->requestStack->getCurrentRequest();
+
       // Ensure a session is initialised for anonymous users.
-      $request->getSession()->save();
-      $response->prepare($request);
-      $response->send();
+      try {
+        if ($request->hasSession()) {
+          $request->getSession()->save();
+        }
+      }
+      catch (\Exception $e) {
+        // Log the session error but continue with the redirect.
+        $this->logger->warning('Session error during payment redirect: @message', ['@message' => $e->getMessage()]);
+      }
+
+      // Store the redirect URL in the tempStore
+      // for later processing by the EventSubscriber.
+      $this->tempStore->set('redirect_url', $nextUrl->getHref());
       return TRUE;
     }
 
