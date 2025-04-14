@@ -5,10 +5,11 @@ namespace Drupal\govuk_pay\Entity;
 use Drupal\user\EntityOwnerTrait;
 use Drupal\govuk_pay\GovUkPaymentInterface;
 use Drupal\Core\Field\BaseFieldDefinition;
+use Drupal\Core\Entity\RevisionableContentEntityBase;
+use Drupal\Core\Entity\RevisionLogEntityTrait;
 use Drupal\Core\Entity\EntityTypeInterface;
 use Drupal\Core\Entity\EntityStorageInterface;
 use Drupal\Core\Entity\EntityChangedTrait;
-use Drupal\Core\Entity\ContentEntityBase;
 
 /**
  * Defines the GovUkPayment entity.
@@ -17,6 +18,7 @@ use Drupal\Core\Entity\ContentEntityBase;
  *   id = "govukpayment",
  *   label = @Translation("GOV.UK Payment"),
  *   base_table = "govukpayment",
+ *   revision_table = "govukpayment_revision",
  *   admin_permission = "administer govukpayment entity",
  *   fieldable = FALSE,
  *   handlers = {
@@ -40,6 +42,8 @@ use Drupal\Core\Entity\ContentEntityBase;
  *     "payment_for" = "payment_for",
  *     "payment_reference" = "payment_reference",
  *     "owner" = "uid",
+ *     "revision" = "vid",
+ *     "revision_translation_affected" = "revision_translation_affected",
  *   },
  *   config_export = {
  *     "id",
@@ -52,14 +56,20 @@ use Drupal\Core\Entity\ContentEntityBase;
  *     "payment_for",
  *     "payment_reference",
  *     "uid",
+ *   },
+ *   revision_metadata_keys = {
+ *     "revision_user" = "revision_user",
+ *     "revision_created" = "revision_created",
+ *     "revision_log_message" = "revision_log_message"
  *   }
  * )
  */
-class GovUkPayment extends ContentEntityBase implements GovUkPaymentInterface {
+class GovUkPayment extends RevisionableContentEntityBase implements GovUkPaymentInterface {
 
   // Implements methods defined by EntityChangedInterface.
   use EntityChangedTrait;
   use EntityOwnerTrait;
+  use RevisionLogEntityTrait;
 
   /**
    * {@inheritdoc}
@@ -120,7 +130,8 @@ class GovUkPayment extends ContentEntityBase implements GovUkPaymentInterface {
         'type' => 'string',
         'weight' => -6,
       ])
-      ->setDisplayConfigurable('view', TRUE);
+      ->setDisplayConfigurable('view', TRUE)
+      ->setRevisionable(TRUE);
 
     $fields['webform_id'] = BaseFieldDefinition::create('string')
       ->setLabel(t('Webform ID'))
@@ -135,7 +146,8 @@ class GovUkPayment extends ContentEntityBase implements GovUkPaymentInterface {
         'type' => 'string',
         'weight' => -6,
       ])
-      ->setDisplayConfigurable('view', TRUE);
+      ->setDisplayConfigurable('view', TRUE)
+      ->setRevisionable(TRUE);
 
     $fields['submission_id'] = BaseFieldDefinition::create('string')
       ->setLabel(t('Submission ID'))
@@ -150,7 +162,8 @@ class GovUkPayment extends ContentEntityBase implements GovUkPaymentInterface {
         'type' => 'string',
         'weight' => -6,
       ])
-      ->setDisplayConfigurable('view', TRUE);
+      ->setDisplayConfigurable('view', TRUE)
+      ->setRevisionable(TRUE);
 
     $fields['status'] = BaseFieldDefinition::create('string')
       ->setLabel(t('Status'))
@@ -165,7 +178,8 @@ class GovUkPayment extends ContentEntityBase implements GovUkPaymentInterface {
         'type' => 'string',
         'weight' => -6,
       ])
-      ->setDisplayConfigurable('view', TRUE);
+      ->setDisplayConfigurable('view', TRUE)
+      ->setRevisionable(TRUE);
 
     $fields['amount'] = BaseFieldDefinition::create('integer')
       ->setLabel(t('Amount'))
@@ -180,7 +194,8 @@ class GovUkPayment extends ContentEntityBase implements GovUkPaymentInterface {
         'type' => 'string',
         'weight' => -6,
       ])
-      ->setDisplayConfigurable('view', TRUE);
+      ->setDisplayConfigurable('view', TRUE)
+      ->setRevisionable(TRUE);
 
     $fields['payment_for'] = BaseFieldDefinition::create('string')
       ->setLabel(t('Payment For'))
@@ -195,7 +210,8 @@ class GovUkPayment extends ContentEntityBase implements GovUkPaymentInterface {
         'type' => 'string',
         'weight' => -5,
       ])
-      ->setDisplayConfigurable('view', TRUE);
+      ->setDisplayConfigurable('view', TRUE)
+      ->setRevisionable(TRUE);
 
     $fields['payment_reference'] = BaseFieldDefinition::create('string')
       ->setLabel(t('Payment Reference'))
@@ -210,14 +226,43 @@ class GovUkPayment extends ContentEntityBase implements GovUkPaymentInterface {
         'type' => 'string',
         'weight' => -4,
       ])
-      ->setDisplayConfigurable('view', TRUE);
+      ->setDisplayConfigurable('view', TRUE)
+      ->setRevisionable(TRUE);
 
     $fields['created'] = BaseFieldDefinition::create('created')
       ->setLabel(t('Created'))
-      ->setDescription(t('The time that the entity was created.'));
+      ->setDescription(t('The time that the entity was created.'))
+      ->setRevisionable(TRUE);
+
     $fields['changed'] = BaseFieldDefinition::create('changed')
       ->setLabel(t('Changed'))
-      ->setDescription(t('The time that the entity was last edited.'));
+      ->setDescription(t('The time that the entity was last edited.'))
+      ->setRevisionable(TRUE);
+
+    // Revision metadata fields.
+    $fields['revision_created'] = BaseFieldDefinition::create('created')
+      ->setLabel(t('Revision created'))
+      ->setDescription(t('The time that the current revision was created.'))
+      ->setRevisionable(TRUE);
+
+    $fields['revision_user'] = BaseFieldDefinition::create('entity_reference')
+      ->setLabel(t('Revision user'))
+      ->setDescription(t('The user ID of the author of the current revision.'))
+      ->setSetting('target_type', 'user')
+      ->setRevisionable(TRUE);
+
+    $fields['revision_log_message'] = BaseFieldDefinition::create('string_long')
+      ->setLabel(t('Revision log message'))
+      ->setDescription(t('Briefly describe the changes you have made.'))
+      ->setRevisionable(TRUE)
+      ->setDefaultValue('')
+      ->setDisplayOptions('form', [
+        'type' => 'string_textarea',
+        'weight' => 25,
+        'settings' => [
+          'rows' => 4,
+        ],
+      ]);
 
     return $fields;
   }
