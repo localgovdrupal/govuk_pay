@@ -911,6 +911,73 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
   }
 
   /**
+   * Tests the handlePaymentRedirect method with a valid URL.
+   *
+   * @covers ::handlePaymentRedirect
+   */
+  public function testHandlePaymentRedirectWithUrl() {
+    // Create a mock payment response.
+    $payment_response = $this->createMock('Swagger\Client\Model\CreatePaymentResult');
+
+    // Create a mock Link object for the next_url.
+    $nextUrl = $this->createMock('Swagger\Client\Model\Link');
+    $nextUrl->expects($this->once())
+      ->method('getHref')
+      ->willReturn('https://payments.example.com/pay/123');
+
+    // Create a mock PaymentLinks object.
+    $links = $this->createMock('Swagger\Client\Model\PaymentLinks');
+    $links->expects($this->once())
+      ->method('getNextUrl')
+      ->willReturn($nextUrl);
+
+    // Set up the payment response to return the links.
+    $payment_response->expects($this->once())
+      ->method('getLinks')
+      ->willReturn($links);
+
+    // Create a mock session.
+    $session = $this->createMock('Symfony\Component\HttpFoundation\Session\SessionInterface');
+    $session->expects($this->once())
+      ->method('save');
+
+    // Create a mock request.
+    $request = $this->createMock('Symfony\Component\HttpFoundation\Request');
+    $request->expects($this->once())
+      ->method('getSession')
+      ->willReturn($session);
+
+    // Create a mock request stack.
+    $request_stack = $this->createMock('Symfony\Component\HttpFoundation\RequestStack');
+    $request_stack->expects($this->once())
+      ->method('getCurrentRequest')
+      ->willReturn($request);
+
+    // Create a mock tempStore.
+    $temp_store = $this->createMock('Drupal\Core\TempStore\PrivateTempStore');
+    $temp_store->expects($this->once())
+      ->method('set')
+      ->with('redirect_url', 'https://payments.example.com/pay/123');
+
+    // Create a service with mocked dependencies.
+    $service = $this->createMockService([
+      'requestStack' => $request_stack,
+      'tempStore' => $temp_store,
+    ]);
+
+    // Get the protected method.
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    $method = $reflection->getMethod('handlePaymentRedirect');
+    $method->setAccessible(TRUE);
+
+    // Call the method under test.
+    $result = $method->invoke($service, $payment_response);
+
+    // Assert the result is TRUE.
+    $this->assertTrue($result);
+  }
+
+  /**
    * Tests the processMetadata method.
    *
    * @covers ::processMetadata
