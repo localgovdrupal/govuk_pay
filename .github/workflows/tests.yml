@@ -1,4 +1,4 @@
-name: Drupal Kernel Tests
+name: GOV.UK Pay Tests
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  kernel-tests:
+  test:
     runs-on: ubuntu-latest
     
     strategy:
@@ -14,7 +14,7 @@ jobs:
         php-versions: ['8.1']
         drupal-versions: ['10.4.6']
 
-    name: Kernel Tests - PHP ${{ matrix.php-versions }} / Drupal ${{ matrix.drupal-versions }}
+    name: PHP ${{ matrix.php-versions }} / Drupal ${{ matrix.drupal-versions }}
     
     steps:
     - uses: actions/checkout@v3
@@ -51,6 +51,19 @@ jobs:
         composer require drush/drush --no-interaction
         composer require drupal/token --no-interaction
         composer require drupal/webform --no-interaction
+        composer require --dev drupal/core-dev:^${{ matrix.drupal-versions }} --no-interaction
+    
+    - name: Add repositories for dependencies
+      run: |
+        cd drupal
+        composer config repositories.tanc-govuk-pay-client-php vcs https://github.com/tanc/govuk-pay-client-php
+    
+    - name: Install GOV.UK Pay module
+      run: |
+        cd drupal
+        mkdir -p web/modules/contrib/govuk_pay
+        cp -r ${{ github.workspace }}/module-source/* web/modules/contrib/govuk_pay/
+        composer require tanc/govuk-pay-client-php:^1.0.3 --no-interaction
     
     - name: Install Drupal with SQLite
       run: |
@@ -66,28 +79,20 @@ jobs:
         chmod 777 web/sites/default/settings.php
         vendor/bin/drush site-install --db-url=sqlite://${{ github.workspace }}/drupal/web/sites/default/files/db.sqlite --yes
     
-    - name: Copy module to Drupal modules directory
-      run: |
-        mkdir -p drupal/web/modules/contrib/govuk_pay
-        cp -r module-source/* drupal/web/modules/contrib/govuk_pay/
-    
     - name: Enable required modules
       run: |
         cd drupal
         vendor/bin/drush en -y govuk_pay govuk_pay_webform token webform
     
-    - name: Verify PHPUnit configuration
+    - name: Run Unit Tests
       run: |
         cd drupal
-        ls -la web/core/
-        if [ -f "web/core/phpunit.xml.dist" ]; then
-          echo "PHPUnit configuration file exists"
-        else
-          echo "PHPUnit configuration file not found, checking other locations..."
-          find . -name "phpunit.xml.dist"
-        fi
+        ${{ github.workspace }}/drupal/vendor/bin/phpunit -c ${{ github.workspace }}/drupal/web/core/phpunit.xml.dist \
+          --group govuk_pay,govuk_pay_webform \
+          --testsuite unit \
+          ${{ github.workspace }}/drupal/web/modules/contrib/govuk_pay
     
-    - name: Run All Kernel Tests
+    - name: Run Kernel Tests
       run: |
         cd drupal
         mkdir -p web/sites/simpletest/browser_output
@@ -95,7 +100,7 @@ jobs:
         SIMPLETEST_DB=sqlite://${{ github.workspace }}/drupal/web/sites/default/files/db.sqlite \
         SIMPLETEST_BASE_URL=http://localhost:8080 \
         BROWSERTEST_OUTPUT_DIRECTORY=${{ github.workspace }}/drupal/web/sites/simpletest/browser_output \
-        vendor/bin/phpunit -c ${{ github.workspace }}/drupal/web/core/phpunit.xml.dist \
+        ${{ github.workspace }}/drupal/vendor/bin/phpunit -c ${{ github.workspace }}/drupal/web/core/phpunit.xml.dist \
           --group govuk_pay,govuk_pay_webform \
           ${{ github.workspace }}/drupal/web/modules/contrib/govuk_pay/tests/src/Kernel \
           ${{ github.workspace }}/drupal/web/modules/contrib/govuk_pay/modules/govuk_pay_webform/tests/src/Kernel
