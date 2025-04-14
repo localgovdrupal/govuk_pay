@@ -2,8 +2,16 @@
 
 namespace Drupal\Tests\govuk_pay_webform\Kernel;
 
+use Symfony\Component\HttpFoundation\Session\SessionInterface;
+use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\HttpFoundation\Request;
 use Swagger\Client\Model\PaymentState;
+use Swagger\Client\Model\PaymentLinks;
+use Swagger\Client\Model\Link;
 use Swagger\Client\Model\CreatePaymentResult;
+use Psr\Log\LoggerInterface;
+use Drupal\govuk_pay_webform\GovUkPayWebformService;
+use Drupal\Core\Routing\TrustedRedirectResponse;
 
 /**
  * Tests the GOV.UK Pay Webform service.
@@ -222,6 +230,145 @@ class GovUkPayWebformServiceTest extends GovUkPayWebformTestBase {
     $this->expectException(\RuntimeException::class);
     $this->expectExceptionMessage('Missing required payment description (payment_for)');
     $method->invoke($this->paymentService, $invalid_config1);
+  }
+
+  /**
+   * Tests the session handling in the payment redirect method.
+   */
+  public function testHandlePaymentRedirect() {
+    // Create mock objects for the response components.
+    $nextUrl = $this->prophesize(Link::class);
+    $nextUrl->getHref()->willReturn('https://payments.example.com/pay/123');
+
+    $links = $this->prophesize(PaymentLinks::class);
+    $links->getNextUrl()->willReturn($nextUrl->reveal());
+
+    $payment_response = $this->prophesize(CreatePaymentResult::class);
+    $payment_response->getLinks()->willReturn($links->reveal());
+
+    // Use reflection to access the protected method.
+    $reflection = new \ReflectionClass($this->paymentService);
+    $handlePaymentMethod = $reflection->getMethod('handlePaymentRedirect');
+    $handlePaymentMethod->setAccessible(TRUE);
+
+    // Test 1: Normal session handling
+    // Create a mock session that works normally.
+    $session = $this->prophesize(SessionInterface::class);
+    $session->isStarted()->willReturn(TRUE);
+    $session->save()->shouldBeCalled();
+
+    // Create a mock request.
+    $request = $this->prophesize(Request::class);
+    $request->hasSession()->willReturn(TRUE);
+    $request->getSession()->willReturn($session->reveal());
+
+    // Set up the request stack.
+    $request_stack = $this->prophesize(RequestStack::class);
+    $request_stack->getCurrentRequest()->willReturn($request->reveal());
+
+    // Replace the request stack in the service.
+    $requestStackProperty = $reflection->getProperty('requestStack');
+    $requestStackProperty->setAccessible(TRUE);
+    $requestStackProperty->setValue($this->paymentService, $request_stack->reveal());
+
+    // Create a mock response to return from our test method.
+    $mockResponse = new TrustedRedirectResponse('https://payments.example.com/pay/123');
+
+    // Use reflection to temporarily replace the method.
+    $createRedirectMethod = $reflection->getMethod('createRedirectResponse');
+    $createRedirectMethod->setAccessible(TRUE);
+
+    // We can't actually replace the method at runtime in PHP, so we'll use a different approach.
+    // Instead, we'll create a test double that extends the service class.
+    $testDouble = $this->getMockBuilder(get_class($this->paymentService))
+      ->disableOriginalConstructor()
+      ->setMethods(['createRedirectResponse'])
+      ->getMock();
+
+    // Configure the mock to return our mock response.
+    $testDouble->method('createRedirectResponse')
+      ->willReturn($mockResponse);
+
+    // Copy all properties from the original service to our test double.
+    foreach ($reflection->getProperties() as $property) {
+      if (!$property->isStatic()) {
+        $property->setAccessible(TRUE);
+        $value = $property->getValue($this->paymentService);
+
+        $property->setValue($testDouble, $value);
+      }
+    }
+
+    // Test normal session handling.
+    $result = $handlePaymentMethod->invoke($testDouble, $payment_response->reveal());
+
+    // Verify the result is a TrustedRedirectResponse with the correct URL.
+    $this->assertSame($mockResponse, $result);
+    $this->assertEquals('https://payments.example.com/pay/123', $result->getTargetUrl());
+
+    // Test 2: Session error handling
+    // Create a mock session that throws an exception.
+    $session = $this->prophesize(SessionInterface::class);
+    $session->isStarted()->willReturn(TRUE);
+    $session->save()->willThrow(new \RuntimeException('Session error'));
+
+    // Create a mock request.
+    $request = $this->prophesize(Request::class);
+    $request->hasSession()->willReturn(TRUE);
+    $request->getSession()->willReturn($session->reveal());
+
+    // Set up the request stack.
+    $request_stack = $this->prophesize(RequestStack::class);
+    $request_stack->getCurrentRequest()->willReturn($request->reveal());
+
+    // Replace the request stack in the test double.
+    $requestStackProperty->setValue($testDouble, $request_stack->reveal());
+
+    // Set up the logger to expect a warning.
+    $logger = $this->prophesize(LoggerInterface::class);
+    $logger->warning('Session error during payment redirect: @message', ['@message' => 'Session error'])->shouldBeCalled();
+
+    // Replace the logger in the test double.
+    $loggerProperty = $reflection->getProperty('logger');
+    $loggerProperty->setAccessible(TRUE);
+    $loggerProperty->setValue($testDouble, $logger->reveal());
+
+    // Test session error handling.
+    $result = $handlePaymentMethod->invoke($testDouble, $payment_response->reveal());
+
+    // Verify that despite the session error, we still get a redirect response.
+    $this->assertSame($mockResponse, $result);
+    $this->assertEquals('https://payments.example.com/pay/123', $result->getTargetUrl());
+  }
+
+}
+
+/**
+ * Test double for GovUkPayWebformService that allows tracking redirect calls.
+ */
+class TestGovUkPayWebformService extends GovUkPayWebformService {
+
+  /**
+   * The URL that was passed to createRedirectResponse.
+   *
+   * @var string
+   */
+  public $redirectUrl;
+
+  /**
+   * The request that was passed to createRedirectResponse.
+   *
+   * @var \Symfony\Component\HttpFoundation\Request
+   */
+  public $redirectRequest;
+
+  /**
+   * {@inheritdoc}
+   */
+  protected function createRedirectResponse($url, $request) {
+    $this->redirectUrl = $url;
+    $this->redirectRequest = $request;
+    return new TrustedRedirectResponse($url);
   }
 
 }
