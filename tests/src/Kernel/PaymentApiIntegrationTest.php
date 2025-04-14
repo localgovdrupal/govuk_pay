@@ -177,13 +177,6 @@ class PaymentApiIntegrationTest extends KernelTestBase {
   }
 
   /**
-   * Tests creating a payment with API integration.
-   */
-  public function testCreatePaymentWithApi() {
-    $this->markTestSkipped('Skipping due to database transaction issues.');
-  }
-
-  /**
    * Tests updating a payment status from the API.
    */
   public function testUpdatePaymentStatusFromApi() {
