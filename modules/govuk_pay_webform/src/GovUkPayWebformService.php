@@ -460,10 +460,22 @@ class GovUkPayWebformService {
     $nextUrl = $links->getNextUrl();
 
     if (!is_null($nextUrl)) {
-      $response = new TrustedRedirectResponse($nextUrl->getHref(), 302);
       $request = $this->requestStack->getCurrentRequest();
-      // Ensure a session is initialised for anonymous users.
-      $request->getSession()->save();
+
+      // Initialize the session before creating the response.
+      try {
+        // Only try to save the session if it's already started.
+        if ($request->hasSession() && $request->getSession()->isStarted()) {
+          $request->getSession()->save();
+        }
+      }
+      catch (\Exception $e) {
+        // Log but continue if there's a session error.
+        $this->logger->warning('Session error during payment redirect: @message', ['@message' => $e->getMessage()]);
+      }
+
+      // Create and send the redirect response.
+      $response = new TrustedRedirectResponse($nextUrl->getHref(), 302);
       $response->prepare($request);
       $response->send();
       return TRUE;
