@@ -1,0 +1,67 @@
+webform.handler.govuk_pay:
+  type: mapping
+  label: 'GOV.UK Pay settings'
+  mapping:
+    fields:
+      type: mapping
+      label: 'Field mappings'
+      mapping:
+        amount:
+          type: string
+          label: 'Amount field'
+        email:
+          type: string
+          label: 'Email field'
+        address:
+          type: mapping
+          label: 'Address fields'
+          mapping:
+            line1:
+              type: string
+              label: 'Address line 1'
+            line2:
+              type: string
+              label: 'Address line 2'
+            city:
+              type: string
+              label: 'City'
+            postcode:
+              type: string
+              label: 'Postcode'
+            country:
+              type: string
+              label: 'Country'
+    payment_for:
+      type: string
+      label: 'Payment description'
+    payment_reference:
+      type: string
+      label: 'Payment reference'
+    metadata:
+      type: sequence
+      label: 'Metadata'
+      sequence:
+        type: mapping
+        mapping:
+          key:
+            type: string
+            label: 'Key'
+          value:
+            type: string
+            label: 'Value'
+    wrapper_attributes:
+      type: mapping
+      label: 'Wrapper attributes'
+      mapping:
+        class:
+          type: sequence
+          label: 'CSS classes'
+          sequence:
+            type: string
+            label: 'CSS class'
+    default_markup:
+      type: text
+      label: 'Default markup'
+    confirmation_message:
+      type: text
+      label: 'Confirmation message'
