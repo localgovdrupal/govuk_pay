@@ -314,11 +314,17 @@ class GovUkPayWebformServiceTest extends GovUkPayWebformTestBase {
     $loggerProperty->setAccessible(TRUE);
     $loggerProperty->setValue($this->paymentService, $logger->reveal());
 
+    // We're expecting an exception to be caught internally, not thrown to the test
     // Test session error handling.
-    $result = $handlePaymentMethod->invoke($this->paymentService, $payment_response->reveal());
-    
-    // Verify that despite the session error, we still get TRUE as the result.
-    $this->assertTrue($result);
+    try {
+      $result = $handlePaymentMethod->invoke($this->paymentService, $payment_response->reveal());
+      
+      // Verify that despite the session error, we still get TRUE as the result.
+      $this->assertTrue($result);
+    }
+    catch (\RuntimeException $e) {
+      $this->fail('Exception should be caught internally, not thrown: ' . $e->getMessage());
+    }
   }
 }
 

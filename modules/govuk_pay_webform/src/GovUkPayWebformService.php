@@ -460,10 +460,20 @@ class GovUkPayWebformService {
 
     if (!is_null($nextUrl)) {
       $request = $this->requestStack->getCurrentRequest();
-      // Ensure a session is initialised for anonymous users.
-      $request->getSession()->save();
 
-      // Store the redirect URL in the tempStore for later processing by the EventSubscriber.
+      // Ensure a session is initialised for anonymous users.
+      try {
+        if ($request->hasSession()) {
+          $request->getSession()->save();
+        }
+      }
+      catch (\Exception $e) {
+        // Log the session error but continue with the redirect.
+        $this->logger->warning('Session error during payment redirect: @message', ['@message' => $e->getMessage()]);
+      }
+
+      // Store the redirect URL in the tempStore
+      // for later processing by the EventSubscriber.
       $this->tempStore->set('redirect_url', $nextUrl->getHref());
       return TRUE;
     }

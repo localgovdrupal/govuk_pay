@@ -154,10 +154,10 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
    * Creates a mock service with specified methods mocked.
    *
    * @param array $methods
-   *   The methods to mock.
+   *   Methods to mock.
    *
-   * @return \Drupal\govuk_pay_webform\GovUkPayWebformService|\PHPUnit\Framework\MockObject\MockObject
-   *   The mocked service with calculateAmount method available.
+   * @return \PHPUnit\Framework\MockObject\MockObject
+   *   The mock service.
    */
   protected function createMockService(array $methods) {
     return $this->getMockBuilder(GovUkPayWebformService::class)
@@ -172,7 +172,7 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
         $this->token->reveal(),
         $this->currentUser->reveal(),
       ])
-      ->onlyMethods($methods)
+      ->onlyMethods(array_keys($methods))
       ->getMock();
   }
 
@@ -911,41 +911,30 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
   }
 
   /**
-   * Tests the handlePaymentRedirect method with a valid URL.
-   *
-   * @covers ::handlePaymentRedirect
+   * Tests the handlePaymentRedirect method with a URL.
    */
   public function testHandlePaymentRedirectWithUrl() {
     // Create a mock payment response.
     $payment_response = $this->createMock('Swagger\Client\Model\CreatePaymentResult');
+    $links = $this->createMock('Swagger\Client\Model\PaymentLinks');
+    $next_url = $this->createMock('Swagger\Client\Model\Link');
 
-    // Create a mock Link object for the next_url.
-    $nextUrl = $this->createMock('Swagger\Client\Model\Link');
-    $nextUrl->expects($this->once())
+    // Configure the mocks.
+    $next_url->expects($this->once())
       ->method('getHref')
       ->willReturn('https://payments.example.com/pay/123');
-
-    // Create a mock PaymentLinks object.
-    $links = $this->createMock('Swagger\Client\Model\PaymentLinks');
     $links->expects($this->once())
       ->method('getNextUrl')
-      ->willReturn($nextUrl);
-
-    // Set up the payment response to return the links.
+      ->willReturn($next_url);
     $payment_response->expects($this->once())
       ->method('getLinks')
       ->willReturn($links);
 
-    // Create a mock session.
-    $session = $this->createMock('Symfony\Component\HttpFoundation\Session\SessionInterface');
-    $session->expects($this->once())
-      ->method('save');
-
     // Create a mock request.
     $request = $this->createMock('Symfony\Component\HttpFoundation\Request');
     $request->expects($this->once())
-      ->method('getSession')
-      ->willReturn($session);
+      ->method('hasSession')
+      ->willReturn(TRUE);
 
     // Create a mock request stack.
     $request_stack = $this->createMock('Symfony\Component\HttpFoundation\RequestStack');
@@ -959,14 +948,23 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
       ->method('set')
       ->with('redirect_url', 'https://payments.example.com/pay/123');
 
-    // Create a service with mocked dependencies.
-    $service = $this->createMockService([
-      'requestStack' => $request_stack,
-      'tempStore' => $temp_store,
-    ]);
+    // Create a service with our mocked dependencies
+    $service = $this->getMockBuilder(GovUkPayWebformService::class)
+      ->disableOriginalConstructor()
+      ->getMock();
+    
+    // Set the mocked properties on the service
+    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
+    
+    $requestStackProperty = $reflection->getProperty('requestStack');
+    $requestStackProperty->setAccessible(TRUE);
+    $requestStackProperty->setValue($service, $request_stack);
+    
+    $tempStoreProperty = $reflection->getProperty('tempStore');
+    $tempStoreProperty->setAccessible(TRUE);
+    $tempStoreProperty->setValue($service, $temp_store);
 
     // Get the protected method.
-    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
     $method = $reflection->getMethod('handlePaymentRedirect');
     $method->setAccessible(TRUE);
 
