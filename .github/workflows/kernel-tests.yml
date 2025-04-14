@@ -1,0 +1,104 @@
+name: Drupal Kernel Tests
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+
+jobs:
+  kernel-tests:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        php-versions: ['8.1']
+        drupal-versions: ['10.4.6']
+
+    name: Kernel Tests - PHP ${{ matrix.php-versions }} / Drupal ${{ matrix.drupal-versions }}
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        path: module-source
+    
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php-versions }}
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, sqlite3, mysql
+        coverage: xdebug
+        tools: composer:v2
+    
+    - name: Validate composer.json and composer.lock
+      run: composer validate --strict
+      working-directory: ${{ github.workspace }}/module-source
+    
+    - name: Get Composer Cache Directory
+      id: composer-cache
+      run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+    
+    - name: Cache Composer dependencies
+      uses: actions/cache@v3
+      with:
+        path: ${{ steps.composer-cache.outputs.dir }}
+        key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.json') }}
+        restore-keys: ${{ runner.os }}-composer-
+    
+    - name: Create Drupal project
+      run: |
+        composer create-project drupal/recommended-project:${{ matrix.drupal-versions }} drupal
+        cd drupal
+        composer require drush/drush --no-interaction
+        composer require drupal/token --no-interaction
+        composer require drupal/webform --no-interaction
+    
+    - name: Install Drupal with SQLite
+      run: |
+        cd drupal
+        mkdir -p web/sites/default/files
+        chmod -R 777 web/sites/default/files
+        cp web/sites/default/default.settings.php web/sites/default/settings.php
+        echo "\$databases['default']['default'] = [
+          'driver' => 'sqlite',
+          'database' => '${{ github.workspace }}/drupal/web/sites/default/files/db.sqlite',
+          'prefix' => '',
+        ];" >> web/sites/default/settings.php
+        chmod 777 web/sites/default/settings.php
+        vendor/bin/drush site-install --db-url=sqlite://${{ github.workspace }}/drupal/web/sites/default/files/db.sqlite --yes
+    
+    - name: Copy module to Drupal modules directory
+      run: |
+        mkdir -p drupal/web/modules/contrib/govuk_pay
+        cp -r module-source/* drupal/web/modules/contrib/govuk_pay/
+    
+    - name: Enable required modules
+      run: |
+        cd drupal
+        vendor/bin/drush en -y govuk_pay govuk_pay_webform token webform
+    
+    - name: Run Kernel Tests
+      run: |
+        cd drupal
+        mkdir -p web/sites/simpletest/browser_output
+        chmod -R 777 web/sites/simpletest
+        SIMPLETEST_DB=sqlite://${{ github.workspace }}/drupal/web/sites/default/files/db.sqlite \
+        SIMPLETEST_BASE_URL=http://localhost:8080 \
+        BROWSERTEST_OUTPUT_DIRECTORY=${{ github.workspace }}/drupal/web/sites/simpletest/browser_output \
+        vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/contrib/govuk_pay/modules/govuk_pay_webform/tests/src/Kernel
+    
+    - name: Run GOV.UK Pay Core Kernel Tests
+      run: |
+        cd drupal
+        SIMPLETEST_DB=sqlite://${{ github.workspace }}/drupal/web/sites/default/files/db.sqlite \
+        SIMPLETEST_BASE_URL=http://localhost:8080 \
+        BROWSERTEST_OUTPUT_DIRECTORY=${{ github.workspace }}/drupal/web/sites/simpletest/browser_output \
+        vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/contrib/govuk_pay/tests/src/Kernel
+    
+    - name: Upload test artifacts
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: |
+          ${{ github.workspace }}/drupal/web/sites/simpletest/browser_output
+          ${{ github.workspace }}/drupal/web/sites/default/files/db.sqlite
