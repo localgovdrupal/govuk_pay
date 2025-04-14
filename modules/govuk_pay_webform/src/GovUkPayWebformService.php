@@ -153,7 +153,7 @@ class GovUkPayWebformService {
    */
   public function createPayment(WebformSubmissionInterface $webform_submission, array $configuration) {
     // Validate configuration and required parameters.
-    $this->validatePaymentConfiguration();
+    $this->validatePaymentConfiguration($configuration);
 
     $sid = $webform_submission->id();
     $webform = $webform_submission->getWebform();
@@ -208,16 +208,24 @@ class GovUkPayWebformService {
   /**
    * Validate payment configuration and required parameters.
    *
+   * @param array $configuration
+   *   The handler configuration.
+   *
    * @throws \RuntimeException
    *   If required configuration is missing.
    */
-  protected function validatePaymentConfiguration() {
+  protected function validatePaymentConfiguration(array $configuration = []) {
     // Load config for GOV.UK Pay.
     $config = $this->configFactory->get('govuk_pay.settings');
 
     // Validate required parameters.
     if (empty($config->get('gov_pay__apikey'))) {
       throw new \RuntimeException('GOV.UK Pay API key is not configured. This is a required field on /admin/config/govuk_pay/settings.');
+    }
+
+    // Validate payment_for is present in configuration
+    if (!empty($configuration) && empty($configuration['payment_for'])) {
+      throw new \RuntimeException('Missing required payment description (payment_for)');
     }
   }
 
