@@ -87,7 +87,7 @@ jobs:
           find . -name "phpunit.xml.dist"
         fi
     
-    - name: Run Kernel Tests
+    - name: Run All Kernel Tests
       run: |
         cd drupal
         mkdir -p web/sites/simpletest/browser_output
@@ -95,15 +95,10 @@ jobs:
         SIMPLETEST_DB=sqlite://${{ github.workspace }}/drupal/web/sites/default/files/db.sqlite \
         SIMPLETEST_BASE_URL=http://localhost:8080 \
         BROWSERTEST_OUTPUT_DIRECTORY=${{ github.workspace }}/drupal/web/sites/simpletest/browser_output \
-        vendor/bin/phpunit -c ./web/core/phpunit.xml.dist ./web/modules/contrib/govuk_pay/modules/govuk_pay_webform/tests/src/Kernel
-    
-    - name: Run GOV.UK Pay Core Kernel Tests
-      run: |
-        cd drupal
-        SIMPLETEST_DB=sqlite://${{ github.workspace }}/drupal/web/sites/default/files/db.sqlite \
-        SIMPLETEST_BASE_URL=http://localhost:8080 \
-        BROWSERTEST_OUTPUT_DIRECTORY=${{ github.workspace }}/drupal/web/sites/simpletest/browser_output \
-        vendor/bin/phpunit -c ./web/core/phpunit.xml.dist ./web/modules/contrib/govuk_pay/tests/src/Kernel
+        vendor/bin/phpunit -c ${{ github.workspace }}/drupal/web/core/phpunit.xml.dist \
+          --group govuk_pay,govuk_pay_webform \
+          ${{ github.workspace }}/drupal/web/modules/contrib/govuk_pay/tests/src/Kernel \
+          ${{ github.workspace }}/drupal/web/modules/contrib/govuk_pay/modules/govuk_pay_webform/tests/src/Kernel
     
     - name: Upload test artifacts
       if: failure()

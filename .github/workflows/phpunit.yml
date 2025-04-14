@@ -65,4 +65,4 @@ jobs:
     - name: Run tests
       run: |
         cd drupal
-        vendor/bin/phpunit -c web/core/phpunit.xml.dist web/modules/contrib/govuk_pay
+        ${{ github.workspace }}/vendor/bin/phpunit -c ${{ github.workspace }}/drupal/web/core/phpunit.xml.dist ${{ github.workspace }}/drupal/web/modules/contrib/govuk_pay/tests/src/Unit
