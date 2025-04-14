@@ -208,7 +208,6 @@ class GovUkPaymentEntityTest extends KernelTestBase {
     ]);
 
     $payment->save();
-    $payment_id = $payment->id();
     $original_vid = $payment->getRevisionId();
     $this->payments[] = $payment;
 
