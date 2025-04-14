@@ -17,3 +17,8 @@ services:
     tags:
       - { name: access_check, applies_to: _govuk_pay_webform_access_check }
       - '@token'
+  govuk_pay_webform.redirect_subscriber:
+    class: Drupal\govuk_pay_webform\EventSubscriber\GovUkPayRedirectSubscriber
+    arguments: ['@tempstore.private', '@logger.factory']
+    tags:
+      - { name: event_subscriber }
