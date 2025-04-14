@@ -96,7 +96,7 @@ jobs:
         cd drupal
         mkdir -p web/sites/simpletest/browser_output
         chmod -R 777 web/sites/simpletest
-        SIMPLETEST_DB=sqlite://${{ github.workspace }}/drupal/web/sites/default/files/db.sqlite \
+        SIMPLETEST_DB=sqlite://localhost/${{ github.workspace }}/drupal/web/sites/default/files/db.sqlite \
         SIMPLETEST_BASE_URL=http://localhost:8080 \
         BROWSERTEST_OUTPUT_DIRECTORY=${{ github.workspace }}/drupal/web/sites/simpletest/browser_output \
         ${{ github.workspace }}/drupal/vendor/bin/phpunit -c ${{ github.workspace }}/drupal/web/core/phpunit.xml.dist \
