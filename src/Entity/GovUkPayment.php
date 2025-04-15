@@ -149,20 +149,30 @@ class GovUkPayment extends RevisionableContentEntityBase implements GovUkPayment
       ->setDisplayConfigurable('view', TRUE)
       ->setRevisionable(TRUE);
 
-    $fields['submission_id'] = BaseFieldDefinition::create('string')
+    // Change submission_id from string to entity_reference to webform_submission.
+    $fields['submission_id'] = BaseFieldDefinition::create('entity_reference')
       ->setLabel(t('Submission ID'))
-      ->setDescription(t('The Webform Submission ID  of the GovUKPayment entity.'))
-      ->setSettings([
-        'default_value' => '',
-        'max_length' => 255,
-        'text_processing' => 0,
-      ])
+      ->setDescription(t('The Webform Submission entity referenced by this GovUKPayment.'))
+      ->setSetting('target_type', 'webform_submission')
+      ->setSetting('handler', 'default')
+      ->setRequired(TRUE)
       ->setDisplayOptions('view', [
         'label' => 'above',
-        'type' => 'string',
+        'type' => 'entity_reference_label',
         'weight' => -6,
       ])
+      ->setDisplayOptions('form', [
+        'type' => 'entity_reference_autocomplete',
+        'weight' => -6,
+        'settings' => [
+          'match_operator' => 'CONTAINS',
+          'size' => '60',
+          'autocomplete_type' => 'tags',
+          'placeholder' => '',
+        ],
+      ])
       ->setDisplayConfigurable('view', TRUE)
+      ->setDisplayConfigurable('form', TRUE)
       ->setRevisionable(TRUE);
 
     $fields['status'] = BaseFieldDefinition::create('string')
