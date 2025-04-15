@@ -386,27 +386,13 @@ class GovUkPayWebformService {
     $cardholder_name = NULL;
     $billing_address = NULL;
 
-    // Check if name field is configured and has a value.
-    if (!empty($configuration['fields']['name'])) {
-      $cardholder_name = $this->replaceTokens($configuration['fields']['name'], $webform_submission, TRUE);
-    }
+    $cardholder_name = trim($this->replaceTokens($configuration['fields']['name'], $webform_submission, TRUE)) ?? NULL;
 
-    // Check if address fields are configured and have values.
-    $line1 = !empty($configuration['fields']['address']['line1'])
-      ? $this->replaceTokens($configuration['fields']['address']['line1'], $webform_submission, TRUE)
-      : NULL;
-    $line2 = !empty($configuration['fields']['address']['line2'])
-      ? $this->replaceTokens($configuration['fields']['address']['line2'], $webform_submission, TRUE)
-      : NULL;
-    $postcode = !empty($configuration['fields']['address']['postcode'])
-      ? $this->replaceTokens($configuration['fields']['address']['postcode'], $webform_submission, TRUE)
-      : NULL;
-    $city = !empty($configuration['fields']['address']['city'])
-      ? $this->replaceTokens($configuration['fields']['address']['city'], $webform_submission, TRUE)
-      : NULL;
-    $country = !empty($configuration['fields']['address']['country'])
-      ? $this->replaceTokens($configuration['fields']['address']['country'], $webform_submission, TRUE)
-      : 'GB';
+    $line1 = trim($this->replaceTokens($configuration['fields']['address']['line1'], $webform_submission, TRUE)) ?? NULL;
+    $line2 = trim($this->replaceTokens($configuration['fields']['address']['line2'], $webform_submission, TRUE)) ?? NULL;
+    $postcode = trim($this->replaceTokens($configuration['fields']['address']['postcode'], $webform_submission, TRUE)) ?? NULL;
+    $city = trim($this->replaceTokens($configuration['fields']['address']['city'], $webform_submission, TRUE)) ?? NULL;
+    $country = trim($this->replaceTokens($configuration['fields']['address']['country'], $webform_submission, TRUE)) ?? 'GB';
 
     // Only create billing address if at least line1 is provided.
     if (!empty($line1)) {
@@ -701,11 +687,11 @@ class GovUkPayWebformService {
 
     // Use replacePlain for plain text output (no HTML encoding).
     if ($plain_text) {
-      return $this->token->replacePlain($text, $token_data);
+      return $this->token->replacePlain($text, $token_data, ['clear' => TRUE]);
     }
 
     // Use replace for HTML output (with HTML encoding).
-    return $this->token->replace($text, $token_data);
+    return $this->token->replace($text, $token_data, ['clear' => TRUE]);
   }
 
   /**
