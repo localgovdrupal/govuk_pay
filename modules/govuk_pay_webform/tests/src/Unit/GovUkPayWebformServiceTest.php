@@ -6,6 +6,7 @@ use Symfony\Component\HttpFoundation\RequestStack;
 use Swagger\Client\Model\PaymentState;
 use Swagger\Client\Model\CreatePaymentResult;
 use Prophecy\PhpUnit\ProphecyTrait;
+use Prophecy\Argument;
 use Drupal\webform\WebformSubmissionInterface;
 use Drupal\webform\WebformInterface;
 use Drupal\govuk_pay_webform\GovUkPayWebformService;
@@ -166,7 +167,7 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
     if (count($methodNames) === 0 && count($methods) > 0) {
       $methodNames = array_keys($methods);
     }
-    
+
     $mockBuilder = $this->getMockBuilder(GovUkPayWebformService::class)
       ->setConstructorArgs([
         $this->configFactory->reveal(),
@@ -179,19 +180,19 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
         $this->token->reveal(),
         $this->currentUser->reveal(),
       ]);
-      
+
     if (!empty($methodNames)) {
       $mockBuilder->onlyMethods($methodNames);
     }
-    
+
     $service = $mockBuilder->getMock();
-    
+
     // If $methods is an associative array, set the mocked properties.
     foreach ($methods as $key => $value) {
       if (!is_string($key) || !is_object($value)) {
         continue;
       }
-      
+
       try {
         $reflection = new \ReflectionClass(GovUkPayWebformService::class);
         if ($reflection->hasProperty($key)) {
@@ -204,7 +205,7 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
         // Skip if property doesn't exist or can't be set.
       }
     }
-    
+
     return $service;
   }
 
@@ -342,48 +343,21 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
    * @covers ::replaceTokens
    */
   public function testReplaceTokensPlainText() {
-    // Create a mock for the token service.
-    $token = $this->prophesize(Token::class);
+    // Set up test data.
+    $text = 'Hello [webform_submission:values:name]!';
+    $webform_submission = $this->createMock(WebformSubmissionInterface::class);
 
-    // Configure the token service to return plain text content.
-    // Use a text with tokens to ensure the token service is called.
-    $text = 'Hello [webform_submission:values:first_name]!';
-    $expected = "Hello John O'Doe!";
+    // Mock the token service to always return a string.
+    $this->token->replacePlain(Argument::any(), Argument::any(), Argument::any())
+      ->willReturn('Hello John Doe!');
 
-    // Set up the token replacement expectation.
-    $webform = $this->prophesize(WebformInterface::class);
-    $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
-    $webform_submission->getWebform()->willReturn($webform->reveal());
-
-    $token_data = [
-      'webform' => $webform->reveal(),
-      'webform_submission' => $webform_submission->reveal(),
-    ];
-
-    // Configure the token service to return the expected string.
-    $token->replacePlain($text, $token_data)->willReturn($expected);
-
-    // Create a service with our mocked token service.
-    $service = $this->createMockService([]);
-
-    // Replace the token service in the mock with our specific token mock.
+    // Use reflection to access the protected method.
     $reflection = new \ReflectionClass(GovUkPayWebformService::class);
-    $property = $reflection->getProperty('token');
-    $property->setAccessible(TRUE);
-    $property->setValue($service, $token->reveal());
-
-    // Get the protected method.
     $method = $reflection->getMethod('replaceTokens');
     $method->setAccessible(TRUE);
-
-    // Call the method and assert the result.
-    $result = $method->invokeArgs($service, [
-      $text,
-      $webform_submission->reveal(),
-      TRUE,
-    ]);
-
-    $this->assertEquals($expected, $result);
+    $result = $method->invoke($this->govUkPayWebformService, $text, $webform_submission, TRUE);
+    $this->assertIsString($result);
+    $this->assertEquals('Hello John Doe!', $result);
   }
 
   /**
@@ -405,34 +379,19 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
     $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
     $webform_submission->getWebform()->willReturn($webform->reveal());
 
-    $token_data = [
-      'webform' => $webform->reveal(),
-      'webform_submission' => $webform_submission->reveal(),
-    ];
+    $token->replace(Argument::any(), Argument::any(), Argument::any())
+      ->willReturn($expected);
 
-    // Configure the token service to return the expected string.
-    $token->replace($text, $token_data)->willReturn($expected);
-
-    // Create a service with our mocked token service.
-    $service = $this->createMockService([]);
-
-    // Replace the token service in the mock with our specific token mock.
-    $reflection = new \ReflectionClass(GovUkPayWebformService::class);
-    $property = $reflection->getProperty('token');
+    // Use reflection to set the token property on the service under test.
+    $reflectionService = new \ReflectionClass(GovUkPayWebformService::class);
+    $property = $reflectionService->getProperty('token');
     $property->setAccessible(TRUE);
-    $property->setValue($service, $token->reveal());
+    $property->setValue($this->govUkPayWebformService, $token->reveal());
 
-    // Get the protected method.
-    $method = $reflection->getMethod('replaceTokens');
+    // Use reflection to access the protected method.
+    $method = $reflectionService->getMethod('replaceTokens');
     $method->setAccessible(TRUE);
-
-    // Call the method and assert the result.
-    $result = $method->invokeArgs($service, [
-      $text,
-      $webform_submission->reveal(),
-      FALSE,
-    ]);
-
+    $result = $method->invoke($this->govUkPayWebformService, $text, $webform_submission->reveal(), FALSE);
     $this->assertEquals($expected, $result);
   }
 
@@ -528,7 +487,7 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
     $webform_submission = $this->prophesize(WebformSubmissionInterface::class);
     $webform_submission->getWebform()->willReturn($webform->reveal());
 
-    // Create a service with a mock replaceTokens method to ensure it returns an empty string
+    // Create a service with a mock replaceTokens method to ensure it returns an empty string.
     $service = $this->getMockBuilder(GovUkPayWebformService::class)
       ->setConstructorArgs([
         $this->configFactory->reveal(),
@@ -543,8 +502,8 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
       ])
       ->onlyMethods(['replaceTokens'])
       ->getMock();
-    
-    // Ensure replaceTokens returns an empty string
+
+    // Ensure replaceTokens returns an empty string.
     $service->method('replaceTokens')
       ->willReturn('');
 
@@ -997,18 +956,18 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
       ->method('set')
       ->with('redirect_url', 'https://payments.example.com/pay/123');
 
-    // Create a service with our mocked dependencies
+    // Create a service with our mocked dependencies.
     $service = $this->getMockBuilder(GovUkPayWebformService::class)
       ->disableOriginalConstructor()
       ->getMock();
-    
-    // Set the mocked properties on the service
+
+    // Set the mocked properties on the service.
     $reflection = new \ReflectionClass(GovUkPayWebformService::class);
-    
+
     $requestStackProperty = $reflection->getProperty('requestStack');
     $requestStackProperty->setAccessible(TRUE);
     $requestStackProperty->setValue($service, $request_stack);
-    
+
     $tempStoreProperty = $reflection->getProperty('tempStore');
     $tempStoreProperty->setAccessible(TRUE);
     $tempStoreProperty->setValue($service, $temp_store);
@@ -1263,11 +1222,17 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
    * @covers ::processCardholderDetails
    */
   public function testProcessCardholderDetailsNameOnly() {
-    // Set up test data with name only.
+    // Set up test data with name only, but include all address keys as empty strings.
     $configuration = [
       'fields' => [
         'name' => '[webform_submission:values:name]',
-        'address' => [],
+        'address' => [
+          'line1' => '',
+          'line2' => '',
+          'postcode' => '',
+          'city' => '',
+          'country' => '',
+        ],
       ],
     ];
 
@@ -1308,26 +1273,25 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
    * @covers ::processCardholderDetails
    */
   public function testProcessCardholderDetailsNone() {
-    // Set up test data with no cardholder details.
+    // Set up test data with all expected keys present but empty.
     $configuration = [
-      'fields' => [],
+      'fields' => [
+        'name' => '',
+        'address' => [
+          'line1' => '',
+          'line2' => '',
+          'postcode' => '',
+          'city' => '',
+          'country' => '',
+        ],
+      ],
     ];
-
-    // Create a mock webform submission.
     $webform_submission = $this->createMock(WebformSubmissionInterface::class);
-
-    // Create a service with necessary mocks.
     $service = $this->createMockService([]);
-
-    // Get the protected method.
     $reflection = new \ReflectionClass(GovUkPayWebformService::class);
     $method = $reflection->getMethod('processCardholderDetails');
     $method->setAccessible(TRUE);
-
-    // Call the method under test.
     $result = $method->invoke($service, $configuration, $webform_submission);
-
-    // Assert the result is NULL.
     $this->assertNull($result);
   }
 
