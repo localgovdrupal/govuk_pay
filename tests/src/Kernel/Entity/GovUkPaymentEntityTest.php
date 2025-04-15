@@ -90,10 +90,8 @@ class GovUkPaymentEntityTest extends KernelTestBase {
     // Create a payment entity.
     $payment = GovUkPayment::create([
       'payment_id' => 'pay_123456789',
-      'webform_id' => 'test_payment_form',
-      'submission_id' => '123',
       'status' => 'created',
-    // £50.00 in pence
+      // £50.00 in pence
       'amount' => 5000,
       'payment_for' => 'Test Payment',
       'payment_reference' => 'REF123',
@@ -106,8 +104,6 @@ class GovUkPaymentEntityTest extends KernelTestBase {
     // Verify the payment was saved correctly.
     $this->assertNotEmpty($payment->id(), 'Payment entity was saved with an ID.');
     $this->assertEquals('pay_123456789', $payment->payment_id->value, 'Payment ID was saved correctly.');
-    $this->assertEquals('test_payment_form', $payment->webform_id->value, 'Webform ID was saved correctly.');
-    $this->assertEquals('123', $payment->submission_id->value, 'Submission ID was saved correctly.');
     $this->assertEquals('created', $payment->status->value, 'Status was saved correctly.');
     $this->assertEquals(5000, $payment->amount->value, 'Amount was saved correctly.');
     $this->assertEquals('Test Payment', $payment->payment_for->value, 'Payment for was saved correctly.');
@@ -122,10 +118,8 @@ class GovUkPaymentEntityTest extends KernelTestBase {
     // Create a payment entity.
     $payment = GovUkPayment::create([
       'payment_id' => 'pay_987654321',
-      'webform_id' => 'test_payment_form',
-      'submission_id' => '456',
       'status' => 'created',
-    // £100.00 in pence
+      // £100.00 in pence
       'amount' => 10000,
       'payment_for' => 'Test Payment 2',
       'payment_reference' => 'REF456',
@@ -145,12 +139,11 @@ class GovUkPaymentEntityTest extends KernelTestBase {
     // Verify the loaded payment.
     $this->assertNotNull($loaded_payment, 'Payment was loaded successfully.');
     $this->assertEquals('pay_987654321', $loaded_payment->payment_id->value, 'Payment ID was loaded correctly.');
-    $this->assertEquals('test_payment_form', $loaded_payment->webform_id->value, 'Webform ID was loaded correctly.');
-    $this->assertEquals('456', $loaded_payment->submission_id->value, 'Submission ID was loaded correctly.');
     $this->assertEquals('created', $loaded_payment->status->value, 'Status was loaded correctly.');
     $this->assertEquals(10000, $loaded_payment->amount->value, 'Amount was loaded correctly.');
     $this->assertEquals('Test Payment 2', $loaded_payment->payment_for->value, 'Payment for was loaded correctly.');
     $this->assertEquals('REF456', $loaded_payment->payment_reference->value, 'Payment reference was loaded correctly.');
+    $this->assertEquals($this->user->id(), $loaded_payment->getOwnerId(), 'Owner was loaded correctly.');
   }
 
   /**
@@ -160,11 +153,9 @@ class GovUkPaymentEntityTest extends KernelTestBase {
     // Create a payment entity.
     $payment = GovUkPayment::create([
       'payment_id' => 'pay_update_test',
-      'webform_id' => 'test_payment_form',
-      'submission_id' => '789',
       'status' => 'created',
-    // £75.00 in pence
-      'amount' => 7500,
+      // £25.00 in pence
+      'amount' => 2500,
       'payment_for' => 'Update Test',
       'payment_reference' => 'REF789',
       'uid' => $this->user->id(),
@@ -187,7 +178,7 @@ class GovUkPaymentEntityTest extends KernelTestBase {
     // Verify the update.
     $this->assertEquals('success', $updated_payment->status->value, 'Status was updated correctly.');
     $this->assertEquals('pay_update_test', $updated_payment->payment_id->value, 'Payment ID remained unchanged.');
-    $this->assertEquals(7500, $updated_payment->amount->value, 'Amount remained unchanged.');
+    $this->assertEquals(2500, $updated_payment->amount->value, 'Amount remained unchanged.');
   }
 
   /**
@@ -197,11 +188,9 @@ class GovUkPaymentEntityTest extends KernelTestBase {
     // Create a payment entity.
     $payment = GovUkPayment::create([
       'payment_id' => 'pay_revision_test',
-      'webform_id' => 'test_payment_form',
-      'submission_id' => '101',
       'status' => 'created',
-    // £150.00 in pence
-      'amount' => 15000,
+      // £75.00 in pence
+      'amount' => 7500,
       'payment_for' => 'Revision Test',
       'payment_reference' => 'REF101',
       'uid' => $this->user->id(),
@@ -227,7 +216,9 @@ class GovUkPaymentEntityTest extends KernelTestBase {
 
     // Verify the revision data.
     $this->assertEquals('submitted', $latest_revision->status->value, 'Status was updated in the new revision.');
-    $this->assertEquals('Payment submitted to GOV.UK Pay', $latest_revision->getRevisionLogMessage(), 'Revision log message was saved correctly.');
+    // Check the revision log message.
+    $log_message = $latest_revision->revision_log_message->value;
+    $this->assertEquals('Payment submitted to GOV.UK Pay', $log_message, 'Revision log message was saved correctly.');
   }
 
   /**
@@ -237,11 +228,9 @@ class GovUkPaymentEntityTest extends KernelTestBase {
     // Create a payment entity.
     $payment = GovUkPayment::create([
       'payment_id' => 'pay_delete_test',
-      'webform_id' => 'test_payment_form',
-      'submission_id' => '202',
       'status' => 'created',
-    // £20.00 in pence
-      'amount' => 2000,
+      // £60.00 in pence
+      'amount' => 6000,
       'payment_for' => 'Delete Test',
       'payment_reference' => 'REF202',
       'uid' => $this->user->id(),

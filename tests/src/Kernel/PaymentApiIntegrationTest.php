@@ -183,8 +183,8 @@ class PaymentApiIntegrationTest extends KernelTestBase {
     // Create a payment entity.
     $payment = GovUkPayment::create([
       'payment_id' => 'pay_status_test',
-      'webform_id' => 'test_payment_form',
-      'submission_id' => '456',
+      'webform_id' => ['target_id' => 'test_payment_form'],
+      'submission_id' => ['target_id' => '456'],
       'status' => 'created',
       // £75.00 in pence
       'amount' => 7500,
@@ -245,8 +245,8 @@ class PaymentApiIntegrationTest extends KernelTestBase {
     // Create a payment entity.
     $payment = GovUkPayment::create([
       'payment_id' => 'pay_error_test',
-      'webform_id' => 'test_payment_form',
-      'submission_id' => '789',
+      'webform_id' => ['target_id' => 'test_payment_form'],
+      'submission_id' => ['target_id' => '789'],
       'status' => 'created',
       // £30.00 in pence
       'amount' => 3000,
