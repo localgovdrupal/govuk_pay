@@ -35,7 +35,6 @@ use Drupal\Core\Entity\EntityChangedTrait;
  *     "payment_id" = "payment_id",
  *     "uuid" = "uuid",
  *     "webform_id" = "webform_id",
- *     "submission_id" = "submission_id",
  *     "status" = "status",
  *     "amount" = "amount",
  *     "uid" = "uid",
@@ -50,7 +49,6 @@ use Drupal\Core\Entity\EntityChangedTrait;
  *     "payment_id",
  *     "uuid",
  *     "webform_id",
- *     "submission_id",
  *     "status",
  *     "amount",
  *     "payment_for",
@@ -147,32 +145,6 @@ class GovUkPayment extends RevisionableContentEntityBase implements GovUkPayment
         'weight' => -6,
       ])
       ->setDisplayConfigurable('view', TRUE)
-      ->setRevisionable(TRUE);
-
-    // Change submission_id from string to entity_reference to webform_submission.
-    $fields['submission_id'] = BaseFieldDefinition::create('entity_reference')
-      ->setLabel(t('Submission ID'))
-      ->setDescription(t('The Webform Submission entity referenced by this GovUKPayment.'))
-      ->setSetting('target_type', 'webform_submission')
-      ->setSetting('handler', 'default')
-      ->setRequired(TRUE)
-      ->setDisplayOptions('view', [
-        'label' => 'above',
-        'type' => 'entity_reference_label',
-        'weight' => -6,
-      ])
-      ->setDisplayOptions('form', [
-        'type' => 'entity_reference_autocomplete',
-        'weight' => -6,
-        'settings' => [
-          'match_operator' => 'CONTAINS',
-          'size' => '60',
-          'autocomplete_type' => 'tags',
-          'placeholder' => '',
-        ],
-      ])
-      ->setDisplayConfigurable('view', TRUE)
-      ->setDisplayConfigurable('form', TRUE)
       ->setRevisionable(TRUE);
 
     $fields['status'] = BaseFieldDefinition::create('string')
