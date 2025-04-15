@@ -34,7 +34,6 @@ use Drupal\Core\Entity\EntityChangedTrait;
  *     "id" = "id",
  *     "payment_id" = "payment_id",
  *     "uuid" = "uuid",
- *     "webform_id" = "webform_id",
  *     "status" = "status",
  *     "amount" = "amount",
  *     "uid" = "uid",
@@ -48,7 +47,6 @@ use Drupal\Core\Entity\EntityChangedTrait;
  *     "id",
  *     "payment_id",
  *     "uuid",
- *     "webform_id",
  *     "status",
  *     "amount",
  *     "payment_for",
@@ -131,22 +129,7 @@ class GovUkPayment extends RevisionableContentEntityBase implements GovUkPayment
       ->setDisplayConfigurable('view', TRUE)
       ->setRevisionable(TRUE);
 
-    $fields['webform_id'] = BaseFieldDefinition::create('string')
-      ->setLabel(t('Webform ID'))
-      ->setDescription(t('The Webform ID  of the GovUKPayment entity.'))
-      ->setSettings([
-        'default_value' => '',
-        'max_length' => 255,
-        'text_processing' => 0,
-      ])
-      ->setDisplayOptions('view', [
-        'label' => 'above',
-        'type' => 'string',
-        'weight' => -6,
-      ])
-      ->setDisplayConfigurable('view', TRUE)
-      ->setRevisionable(TRUE);
-
+    // Removed webform_id field to decouple govuk_pay from webform.
     $fields['status'] = BaseFieldDefinition::create('string')
       ->setLabel(t('Status'))
       ->setDescription(t('The last saved Status of the GovUKPayment entity.'))

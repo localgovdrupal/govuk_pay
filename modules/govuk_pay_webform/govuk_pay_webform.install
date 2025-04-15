@@ -1,0 +1,59 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the GOV.UK Pay Webform module.
+ */
+
+/**
+ * Implements hook_install().
+ *
+ * Updates the entity schema to add webform-related fields to the govukpayment
+ * entity.
+ */
+function govuk_pay_webform_install() {
+  // Update the entity type definition to include our fields.
+  $definition_update_manager = \Drupal::entityDefinitionUpdateManager();
+  $entity_type = $definition_update_manager->getEntityType('govukpayment');
+
+  // Only proceed if the entity type exists.
+  if ($entity_type) {
+    // Get the field definitions from our hook_entity_base_field_info_alter().
+    $fields = [];
+    govuk_pay_webform_entity_base_field_info_alter($fields, $entity_type);
+
+    // Add the webform_id field if it doesn't exist.
+    $field_storage_definition = $definition_update_manager->getFieldStorageDefinition(
+      'webform_id',
+      'govukpayment'
+    );
+    if (!$field_storage_definition && isset($fields['webform_id'])) {
+      $definition_update_manager->installFieldStorageDefinition(
+        'webform_id',
+        'govukpayment',
+        'govuk_pay_webform',
+        $fields['webform_id']
+      );
+      \Drupal::messenger()->addStatus(
+        t('Added webform_id field to govukpayment entity.')
+      );
+    }
+
+    // Add the submission_id field if it doesn't exist.
+    $field_storage_definition = $definition_update_manager->getFieldStorageDefinition(
+      'submission_id',
+      'govukpayment'
+    );
+    if (!$field_storage_definition && isset($fields['submission_id'])) {
+      $definition_update_manager->installFieldStorageDefinition(
+        'submission_id',
+        'govukpayment',
+        'govuk_pay_webform',
+        $fields['submission_id']
+      );
+      \Drupal::messenger()->addStatus(
+        t('Added submission_id field to govukpayment entity.')
+      );
+    }
+  }
+}

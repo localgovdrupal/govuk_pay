@@ -8,3 +8,8 @@ govuk_pay.settings:
       type: string
       label: 'GOV.UK Pay API key'
       description: 'The API key used for authenticating with the GOV.UK Pay service.'
+    gov_pay__reference:
+      type: string
+      label: 'GOV.UK Pay reference'
+      description: 'The fallback reference sent to the GOV.UK Pay service.'
+      
