@@ -528,8 +528,8 @@ class GovUkPayWebformService {
     $query = $this->entityTypeManager->getStorage('govukpayment')->getQuery();
 
     $query->condition('uuid', $uuid);
-    $query->condition('webform_id', $webform_id);
-    $query->condition('submission_id', $submission_id);
+    $query->condition('webform_id.target_id', $webform_id);
+    $query->condition('submission_id.target_id', $submission_id);
     $query->accessCheck(FALSE);
     $result = $query->execute();
 
@@ -729,8 +729,8 @@ class GovUkPayWebformService {
       'amount' => $amount,
       'uuid' => $uuid,
       'status' => $payment_response->getState()->getStatus(),
-      'webform_id' => $webform_id,
-      'submission_id' => $submission_id,
+      'webform_id' => ['target_id' => $webform_id],
+      'submission_id' => ['target_id' => $submission_id],
       'payment_for' => $payment_for,
       'payment_reference' => $payment_reference,
     ]);

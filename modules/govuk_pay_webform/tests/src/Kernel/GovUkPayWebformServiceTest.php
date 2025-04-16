@@ -2,6 +2,7 @@
 
 namespace Drupal\Tests\govuk_pay_webform\Kernel;
 
+use Drupal\Core\TempStore\PrivateTempStore;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Request;
@@ -12,7 +13,6 @@ use Swagger\Client\Model\CreatePaymentResult;
 use Psr\Log\LoggerInterface;
 use Drupal\govuk_pay_webform\GovUkPayWebformService;
 use Drupal\Core\Routing\TrustedRedirectResponse;
-use Drupal\Core\TempStore\PrivateTempStore;
 
 /**
  * Tests the GOV.UK Pay Webform service.
@@ -192,8 +192,8 @@ class GovUkPayWebformServiceTest extends GovUkPayWebformTestBase {
     $this->assertEquals($amount, $payment->amount->value, 'Amount was set correctly.');
     $this->assertEquals($uuid, $payment->uuid->value, 'UUID was set correctly.');
     $this->assertEquals($payment_status, $payment->status->value, 'Status was set correctly.');
-    $this->assertEquals($webform_id, $payment->webform_id->value, 'Webform ID was set correctly.');
-    $this->assertEquals($submission_id, $payment->submission_id->value, 'Submission ID was set correctly.');
+    $this->assertEquals($webform_id, $payment->webform_id->target_id, 'Webform ID was set correctly.');
+    $this->assertEquals($submission_id, $payment->submission_id->target_id, 'Submission ID was set correctly.');
     $this->assertEquals($payment_for, $payment->payment_for->value, 'Payment for was set correctly.');
     $this->assertEquals($payment_reference, $payment->payment_reference->value, 'Payment reference was set correctly.');
   }
@@ -273,7 +273,7 @@ class GovUkPayWebformServiceTest extends GovUkPayWebformTestBase {
     $requestStackProperty->setValue($this->paymentService, $request_stack->reveal());
 
     // Set up the tempStore to expect a set call.
-    $tempStore = $this->prophesize(\Drupal\Core\TempStore\PrivateTempStore::class);
+    $tempStore = $this->prophesize(PrivateTempStore::class);
     $tempStore->set('redirect_url', 'https://payments.example.com/pay/123')->shouldBeCalled();
 
     // Replace the tempStore in the service.
@@ -283,7 +283,7 @@ class GovUkPayWebformServiceTest extends GovUkPayWebformTestBase {
 
     // Test normal session handling.
     $result = $handlePaymentMethod->invoke($this->paymentService, $payment_response->reveal());
-    
+
     // Verify the result is TRUE.
     $this->assertTrue($result);
 
@@ -318,7 +318,7 @@ class GovUkPayWebformServiceTest extends GovUkPayWebformTestBase {
     // Test session error handling.
     try {
       $result = $handlePaymentMethod->invoke($this->paymentService, $payment_response->reveal());
-      
+
       // Verify that despite the session error, we still get TRUE as the result.
       $this->assertTrue($result);
     }
@@ -326,6 +326,7 @@ class GovUkPayWebformServiceTest extends GovUkPayWebformTestBase {
       $this->fail('Exception should be caught internally, not thrown: ' . $e->getMessage());
     }
   }
+
 }
 
 /**
