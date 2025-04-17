@@ -597,6 +597,54 @@ display:
             default_group: All
             default_group_multiple: {  }
             group_items: {  }
+        payment_id:
+          id: payment_id
+          table: govukpayment
+          field: payment_id
+          relationship: none
+          group_type: group
+          admin_label: ''
+          entity_type: govukpayment
+          entity_field: payment_id
+          plugin_id: string
+          operator: contains
+          value: ''
+          group: 1
+          exposed: true
+          expose:
+            operator_id: payment_id_op
+            label: 'GOV.UK Pay ID'
+            description: ''
+            use_operator: false
+            operator: payment_id_op
+            operator_limit_selection: false
+            operator_list: {  }
+            identifier: payment_id
+            required: false
+            remember: false
+            multiple: false
+            remember_roles:
+              authenticated: authenticated
+              anonymous: '0'
+              localgov_editor: '0'
+              localgov_author: '0'
+              localgov_contributor: '0'
+              localgov_user_manager: '0'
+              dev: '0'
+              drupal_tech: '0'
+            placeholder: 'Can be a partial match'
+          is_grouped: false
+          group_info:
+            label: ''
+            description: ''
+            identifier: ''
+            optional: true
+            widget: select
+            multiple: false
+            remember: false
+            default_group: All
+            default_group_multiple: {  }
+            group_items: {  }
         created:
           id: created
           table: govukpayment
