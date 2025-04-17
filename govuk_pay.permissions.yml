@@ -7,19 +7,6 @@ view any govukpayment entity:
   title: 'View any GOV.UK Payment entity'
   description: 'Allow to view any GOV.UK Payment entity regardless of ownership.'
 
-create govukpayment entity:
-  title: 'Create GOV.UK Payment entities'
-  description: 'Allow to create new GOV.UK Payment entities.'
-
-edit own govukpayment entity:
-  title: 'Edit own GOV.UK Payment entities'
-  description: 'Allow to edit own GOV.UK Payment entities.'
-
-edit any govukpayment entity:
-  title: 'Edit any GOV.UK Payment entity'
-  description: 'Allow to edit any GOV.UK Payment entity regardless of ownership.'
-  restrict access: TRUE
-
 delete own govukpayment entity:
   title: 'Delete own GOV.UK Payment entities'
   description: 'Allow to delete own GOV.UK Payment entities.'

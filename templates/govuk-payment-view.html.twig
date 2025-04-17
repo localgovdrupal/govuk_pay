@@ -1,0 +1,63 @@
+{% block payment_wrapper_start %}<div class="govuk-payment">{% endblock %}
+  {% block payment_basic_info %}
+  <div class="payment-field">
+    <span class="field-label">{{ 'Payment ID'|t }}:</span>
+    <span class="field-value">{{ payment.payment_id }}</span>
+  </div>
+  
+  <div class="payment-field">
+    <span class="field-label">{{ 'Amount'|t }}:</span>
+    <span class="field-value">£{{ payment.amount.value|number_format(2) }}</span>
+  </div>
+  
+  <div class="payment-field">
+    <span class="field-label">{{ 'Status'|t }}:</span>
+    <span class="field-value">{{ payment.status }}</span>
+  </div>
+  
+  <div class="payment-field">
+    <span class="field-label">{{ 'Payment for'|t }}:</span>
+    <span class="field-value">{{ payment.payment_for }}</span>
+  </div>
+  
+  <div class="payment-field">
+    <span class="field-label">{{ 'Reference'|t }}:</span>
+    <span class="field-value">{{ payment.reference }}</span>
+  </div>
+  
+  <div class="payment-field">
+    <span class="field-label">{{ 'Created'|t }}:</span>
+    <span class="field-value">{{ payment.created|date('d/m/Y H:i') }}</span>
+  </div>
+  {% endblock %}
+
+  {% block payment_revisions %}
+  {% if payment.revisions is not empty %}
+    <div class="payment-revisions">
+      <h3>{{ 'Status history'|t }}</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>{{ 'Date'|t }}</th>
+            <th>{{ 'Time'|t }}</th>
+            <th>{{ 'Status'|t }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for revision in payment.revisions %}
+            <tr>
+              <td>{{ revision.revision_created|date('d/m/Y H:i') }}</td>
+              <td>{{ revision.revision_created|date('H:i') }}</td>
+              <td>{{ revision.status }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+  {% endblock %}
+  
+  {% block payment_additional_info %}
+  {# This block is for child templates to add additional information #}
+  {% endblock %}
+{% block payment_wrapper_end %}</div>{% endblock %}

@@ -2,20 +2,19 @@
 
 namespace Drupal\Tests\govuk_pay_webform\Kernel;
 
+use Swagger\Client\Api\CardPaymentsApi;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Client;
 use Drupal\webform\Entity\WebformSubmission;
 use Drupal\webform\Entity\Webform;
 use Drupal\user\Entity\User;
+use Drupal\govuk_pay\PayClientService;
 use Drupal\KernelTests\KernelTestBase;
 use Drupal\Core\StreamWrapper\PublicStream;
 use Drupal\Core\StreamWrapper\PrivateStream;
 use Drupal\Core\Serialization\Yaml;
 use Drupal\Core\DependencyInjection\ContainerBuilder;
-use PHPUnit\Framework\MockObject\MockObject;
-use Swagger\Client\Api\CardPaymentsApi;
-use Drupal\govuk_pay\PayClientService;
 
 /**
  * Base class for GOV.UK Pay Webform kernel tests.
@@ -37,6 +36,7 @@ abstract class GovUkPayWebformTestBase extends KernelTestBase {
     'datetime',
     'file',
     'token',
+    'views',
   ];
 
   /**
@@ -144,6 +144,9 @@ abstract class GovUkPayWebformTestBase extends KernelTestBase {
    * {@inheritdoc}
    */
   protected function setUp(): void {
+    // Disable strict config schema checks in tests.
+    $this->strictConfigSchema = FALSE;
+    
     parent::setUp();
 
     // Install entity schemas.

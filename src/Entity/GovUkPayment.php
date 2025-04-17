@@ -18,12 +18,14 @@ use Drupal\Core\Entity\EntityChangedTrait;
  *   id = "govukpayment",
  *   label = @Translation("GOV.UK Payment"),
  *   base_table = "govukpayment",
+ *   data_table = "govukpayment",
  *   revision_table = "govukpayment_revision",
  *   admin_permission = "administer govukpayment entity",
  *   fieldable = FALSE,
  *   handlers = {
  *     "access" = "Drupal\govuk_pay\GovUkPaymentAccessControlHandler",
- *     "views_data" = "Drupal\views\EntityViewsData",
+ *     "list_builder" = "Drupal\Core\Entity\EntityListBuilder",
+ *     "views_data" = "Drupal\govuk_pay\GovUkPaymentViewsData",
  *     "form" = {
  *       "default" = "Drupal\Core\Entity\ContentEntityForm",
  *       "delete" = "Drupal\Core\Entity\ContentEntityDeleteForm",
@@ -57,7 +59,13 @@ use Drupal\Core\Entity\EntityChangedTrait;
  *     "revision_user" = "revision_user",
  *     "revision_created" = "revision_created",
  *     "revision_log_message" = "revision_log_message"
- *   }
+ *   },
+ *   links = {
+ *     "canonical" = "/govuk-payment/{govukpayment}",
+ *     "edit-form" = "/govuk-payment/{govukpayment}/edit",
+ *     "delete-form" = "/govuk-payment/{govukpayment}/delete",
+ *     "collection" = "/admin/govuk_pay/payments",
+ *   },
  * )
  */
 class GovUkPayment extends RevisionableContentEntityBase implements GovUkPaymentInterface {
@@ -230,6 +238,50 @@ class GovUkPayment extends RevisionableContentEntityBase implements GovUkPayment
       ]);
 
     return $fields;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getPaymentId() {
+    return $this->get('payment_id')->value;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getStatus() {
+    return $this->get('status')->value;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getAmount() {
+    return [
+      'value' => $this->get('amount')->value,
+    ];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getPaymentReference() {
+    return $this->get('payment_reference')->value;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getPaymentFor() {
+    return $this->get('payment_for')->value;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getUrlInfo($rel = 'canonical') {
+    return $this->toUrl($rel);
   }
 
 }

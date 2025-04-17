@@ -3,3 +3,10 @@ confirmation:
   css:
     theme:
       css/confirmation-page.css: {}
+
+payment_view:
+  css:
+    theme:
+      css/payment-view.css: {}
+  js:
+    js/payment-view.js: {}

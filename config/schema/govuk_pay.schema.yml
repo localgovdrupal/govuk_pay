@@ -12,4 +12,3 @@ govuk_pay.settings:
       type: string
       label: 'GOV.UK Pay reference'
       description: 'The fallback reference sent to the GOV.UK Pay service.'
-      

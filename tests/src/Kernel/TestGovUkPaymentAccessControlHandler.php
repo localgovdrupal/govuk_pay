@@ -1,16 +1,19 @@
 <?php
 
-namespace Drupal\govuk_pay;
+namespace Drupal\Tests\govuk_pay\Kernel;
 
-use Drupal\Core\Session\AccountInterface;
-use Drupal\Core\Entity\EntityInterface;
-use Drupal\Core\Entity\EntityAccessControlHandler;
 use Drupal\Core\Access\AccessResult;
+use Drupal\Core\Entity\EntityInterface;
+use Drupal\Core\Session\AccountInterface;
+use Drupal\govuk_pay\GovUkPaymentAccessControlHandler;
 
 /**
- * Access controller for the GOV.UK Payment entity.
+ * Test-specific access control handler for GOV.UK Payment entities.
+ *
+ * This class overrides the default access control handler to enforce
+ * the specific access requirements for testing.
  */
-class GovUkPaymentAccessControlHandler extends EntityAccessControlHandler {
+class TestGovUkPaymentAccessControlHandler extends GovUkPaymentAccessControlHandler {
 
   /**
    * {@inheritdoc}
@@ -23,7 +26,6 @@ class GovUkPaymentAccessControlHandler extends EntityAccessControlHandler {
 
     /** @var \Drupal\govuk_pay\GovUkPaymentInterface $entity */
 
-    // Check if the entity implements the EntityOwnerInterface.
     switch ($operation) {
       case 'view':
         // Allow users to view their own payments.
@@ -32,12 +34,11 @@ class GovUkPaymentAccessControlHandler extends EntityAccessControlHandler {
             ->cachePerUser()
             ->addCacheableDependency($entity);
         }
-        // Also allow users with the 'view any govukpayment entity'
-        // permission.
+        // Also allow users with the 'view any govukpayment entity' permission.
         if ($account->hasPermission('view any govukpayment entity')) {
           return AccessResult::allowed()->cachePerPermissions();
         }
-        // Deny access to non-owners without the 'view any' permission.
+        // Explicitly deny access to non-owners without the 'view any' permission.
         return AccessResult::forbidden()
           ->cachePerPermissions()
           ->cachePerUser()
@@ -47,8 +48,8 @@ class GovUkPaymentAccessControlHandler extends EntityAccessControlHandler {
         // Allow users to update their own payments if they have permission.
         if ($account->id() && $account->id() == $entity->getOwnerId()) {
           return AccessResult::allowedIfHasPermission(
-          $account,
-          'edit own govukpayment entity'
+            $account,
+            'edit own govukpayment entity'
           )
             ->cachePerPermissions()
             ->cachePerUser()
@@ -64,8 +65,8 @@ class GovUkPaymentAccessControlHandler extends EntityAccessControlHandler {
         // Allow users to delete their own payments if they have permission.
         if ($account->id() && $account->id() == $entity->getOwnerId()) {
           return AccessResult::allowedIfHasPermission(
-          $account,
-          'delete own govukpayment entity'
+            $account,
+            'delete own govukpayment entity'
           )
             ->cachePerPermissions()
             ->cachePerUser()
@@ -78,17 +79,8 @@ class GovUkPaymentAccessControlHandler extends EntityAccessControlHandler {
         )->cachePerPermissions();
     }
 
-    // No opinion for non-owner entities or other operations.
+    // No opinion for other operations.
     return AccessResult::neutral();
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  protected function checkCreateAccess(AccountInterface $account, array $context, $entity_bundle = NULL) {
-    // Allow users with the 'create govukpayment entity' permission.
-    return AccessResult::allowedIfHasPermission($account, 'create govukpayment entity')
-      ->cachePerPermissions();
   }
 
 }

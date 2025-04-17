@@ -22,3 +22,12 @@ services:
     arguments: ['@tempstore.private', '@logger.factory']
     tags:
       - { name: event_subscriber }
+  govuk_pay_webform.route_subscriber:
+    class: Drupal\govuk_pay_webform\Routing\RouteSubscriber
+    tags:
+      - { name: event_subscriber }
+  govuk_pay_webform.payment_access:
+    class: Drupal\govuk_pay_webform\Access\GovPayPaymentAccess
+    arguments: ['@entity_type.manager', '@tempstore.private']
+    tags:
+      - { name: access_check, applies_to: _govuk_payment_access_check }

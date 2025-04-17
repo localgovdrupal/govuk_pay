@@ -1,0 +1,44 @@
+.govuk-payment {
+  margin: 1em 0;
+  padding: 1em;
+  border: 1px solid #ddd;
+  background: #f9f9f9;
+}
+
+.govuk-payment .payment-field {
+  margin-bottom: 0.5em;
+}
+
+.govuk-payment .field-label {
+  font-weight: bold;
+  margin-right: 0.5em;
+}
+
+.govuk-payment .webform-fields {
+  margin-top: 1em;
+  padding-top: 1em;
+  border-top: 1px solid #ddd;
+}
+
+.payment-revisions {
+  margin-top: 2em;
+  padding-top: 1em;
+  border-top: 1px solid #ddd;
+}
+
+.payment-revisions table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1em;
+}
+
+.payment-revisions th,
+.payment-revisions td {
+  padding: 0.5em;
+  border-bottom: 1px solid #eee;
+  text-align: left;
+}
+
+.payment-revisions th {
+  font-weight: bold;
+}
