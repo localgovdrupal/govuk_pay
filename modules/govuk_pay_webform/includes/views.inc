@@ -13,10 +13,12 @@
  */
 function govuk_pay_webform_update_payments_view() {
   // Load the view configuration.
+  \Drupal::service('plugin.manager.views.display')->clearCachedDefinitions();
+
   $config_factory = \Drupal::configFactory();
   $view_config = $config_factory->getEditable('views.view.govuk_pay_payments');
 
-  if ($view_config) {
+  if ($view_config && !$view_config->isNew()) {
     // Update dependencies to include webform and this module.
     $dependencies = $view_config->get('dependencies.module') ?: [];
     if (!in_array('govuk_pay_webform', $dependencies)) {
@@ -47,12 +49,6 @@ function govuk_pay_webform_update_payments_view() {
 
     // Add view_webform_submission field.
     $fields = $view_config->get('display.default.display_options.fields') ?: [];
-
-    // Hide the view_govukpayment field as it will be used
-    // in the dropbutton.
-    if (isset($fields['view_govukpayment'])) {
-      $fields['view_govukpayment']['exclude'] = TRUE;
-    }
 
     if (!isset($fields['view_webform_submission'])) {
       $fields['view_webform_submission'] = [
@@ -111,6 +107,18 @@ function govuk_pay_webform_update_payments_view() {
         'absolute' => FALSE,
       ];
       $view_config->set('display.default.display_options.fields.view_webform_submission', $fields['view_webform_submission']);
+    }
+
+    // Ensure view_govukpayment field has exclude=TRUE.
+    // First check if the field exists in the configuration.
+    $view_govukpayment = $view_config->get('display.default.display_options.fields.view_govukpayment');
+    if ($view_govukpayment) {
+      // Field exists, update its exclude property.
+      $view_govukpayment['exclude'] = TRUE;
+      $view_config->set(
+        'display.default.display_options.fields.view_govukpayment',
+        $view_govukpayment
+      );
     }
 
     // Add dropbutton field.
