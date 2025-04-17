@@ -17,7 +17,7 @@ use Drupal\Core\Config\ConfigFactoryInterface;
 /**
  * Service for interacting with the GOV.UK Pay API.
  */
-class ApiService {
+class ApiService implements ApiServiceInterface {
 
   /**
    * The HTTP client.
@@ -394,6 +394,13 @@ class ApiService {
       ]);
       throw new \RuntimeException('Failed to get refunds: ' . $e->getMessage(), 0, $e);
     }
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getClient() {
+    return $this->payClientService->createCardPaymentsApi();
   }
 
 }

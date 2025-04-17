@@ -2,13 +2,14 @@
 
 namespace Drupal\govuk_pay\Controller;
 
-use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\DependencyInjection\ContainerInterface;
-use Drupal\govuk_pay\ApiService;
-use Drupal\Core\Logger\LoggerChannelFactoryInterface;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Controller\ControllerBase;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+use Drupal\govuk_pay\ApiServiceInterface;
+use Drupal\govuk_pay\PaymentEventService;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Controller for handling GOV.UK Pay webhooks.
@@ -30,30 +31,42 @@ class WebhookController extends ControllerBase {
   protected $logger;
 
   /**
-   * The GOV.UK Pay API service.
+   * The API service.
    *
-   * @var \Drupal\govuk_pay\ApiService
+   * @var \Drupal\govuk_pay\ApiServiceInterface
    */
   protected $apiService;
 
   /**
-   * Constructs a new WebhookController.
+   * The payment event service.
+   *
+   * @var \Drupal\govuk_pay\PaymentEventService
+   */
+  protected $paymentEventService;
+
+  /**
+   * Constructs a new WebhookController object.
    *
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
    *   The entity type manager.
    * @param \Drupal\Core\Logger\LoggerChannelFactoryInterface $logger_factory
    *   The logger factory.
-   * @param \Drupal\govuk_pay\ApiService $api_service
-   *   The GOV.UK Pay API service.
+   * @param \Drupal\govuk_pay\ApiServiceInterface $api_service
+   *   The API service.
+   * @param \Drupal\govuk_pay\PaymentEventService $payment_event_service
+   *   The payment event service.
    */
   public function __construct(
     EntityTypeManagerInterface $entity_type_manager,
     LoggerChannelFactoryInterface $logger_factory,
-    ApiService $api_service,
+    ApiServiceInterface $api_service,
+    PaymentEventService $payment_event_service
   ) {
     $this->entityTypeManager = $entity_type_manager;
+    $this->loggerFactory = $logger_factory;
     $this->logger = $logger_factory->get('govuk_pay');
     $this->apiService = $api_service;
+    $this->paymentEventService = $payment_event_service;
   }
 
   /**
@@ -64,6 +77,7 @@ class WebhookController extends ControllerBase {
       $container->get('entity_type.manager'),
       $container->get('logger.factory'),
       $container->get('govuk_pay.api_service'),
+      $container->get('govuk_pay.payment_event_service')
     );
   }
 
@@ -140,42 +154,21 @@ class WebhookController extends ControllerBase {
     // Get the payment ID from the webhook data.
     $payment_id = $data['resource_id'];
 
-    // Find the payment entity with this payment ID.
-    $payment_storage = $this->entityTypeManager->getStorage('govukpayment');
-    $query = $payment_storage->getQuery()
-      ->condition('payment_id', $payment_id)
-      ->accessCheck(FALSE);
-    $entity_ids = $query->execute();
+    // Parse the webhook timestamp.
+    $webhook_created_date = $data['created_date'];
+    $webhook_timestamp = strtotime($webhook_created_date);
+    $new_status = $data['resource']['state']['status'];
+    $event_type = $data['event_type'];
 
-    if (empty($entity_ids)) {
-      $this->logger->warning('Payment not found for ID: @id', ['@id' => $payment_id]);
-      return;
-    }
-
-    // Load the payment entity.
-    $payment_entity = $payment_storage->load(reset($entity_ids));
-    if (!$payment_entity) {
-      $this->logger->warning('Failed to load payment entity for ID: @id', ['@id' => $payment_id]);
-      return;
-    }
-
-    // Update the payment status.
-    try {
-      // Get the current status from the GOV.UK Pay API.
-      $payment_details = $this->apiService->getPayment($payment_id);
-
-      // Update the payment entity with the new status.
-      $payment_entity->status->value = $payment_details->getState()->getStatus();
-      $payment_entity->save();
-
-      $this->logger->info('Updated payment @id status to @status', [
-        '@id' => $payment_id,
-        '@status' => $payment_details->getState()->getStatus(),
-      ]);
-    }
-    catch (\Exception $e) {
-      $this->logger->error('Error updating payment status: @message', ['@message' => $e->getMessage()]);
-    }
+    // Use the payment event service to record the event and update the payment.
+    $this->paymentEventService->recordPaymentEvent(
+      $payment_id,
+      $new_status,
+      $event_type,
+      'webhook',
+      $data,
+      $webhook_timestamp
+    );
   }
 
 }

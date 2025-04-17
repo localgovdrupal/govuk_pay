@@ -6,3 +6,7 @@ services:
   govuk_pay.api_service:
     class: Drupal\govuk_pay\ApiService
     arguments: ['@http_client', '@config.factory', '@govuk_pay.client_service', '@logger.factory']
+    
+  govuk_pay.payment_event_service:
+    class: Drupal\govuk_pay\PaymentEventService
+    arguments: ['@entity_type.manager', '@logger.factory']

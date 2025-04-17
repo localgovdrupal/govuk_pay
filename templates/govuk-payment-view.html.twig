@@ -31,9 +31,9 @@
   </div>
   {% endblock %}
 
-  {% block payment_revisions %}
-  {% if payment.revisions is not empty %}
-    <div class="payment-revisions">
+  {% block payment_events %}
+  {% if payment_events is not empty %}
+    <div class="payment-events">
       <h3>{{ 'Status history'|t }}</h3>
       <table>
         <thead>
@@ -41,14 +41,20 @@
             <th>{{ 'Date'|t }}</th>
             <th>{{ 'Time'|t }}</th>
             <th>{{ 'Status'|t }}</th>
+            <th>{{ 'Event Type'|t }}</th>
+            <th>{{ 'Source'|t }}</th>
+            <th>{{ 'Current'|t }}</th>
           </tr>
         </thead>
         <tbody>
-          {% for revision in payment.revisions %}
-            <tr>
-              <td>{{ revision.revision_created|date('d/m/Y H:i') }}</td>
-              <td>{{ revision.revision_created|date('H:i') }}</td>
-              <td>{{ revision.status }}</td>
+          {% for event in payment_events %}
+            <tr{{ event.is_current_state ? ' class="current-state"' }}>
+              <td>{{ event.event_timestamp|date('Y-m-d') }}</td>
+              <td>{{ event.event_timestamp|date('H:i:s') }}</td>
+              <td>{{ event.status }}</td>
+              <td>{{ event.event_type }}</td>
+              <td>{{ event.source }}</td>
+              <td>{{ event.is_current_state ? '✓'|t : '' }}</td>
             </tr>
           {% endfor %}
         </tbody>

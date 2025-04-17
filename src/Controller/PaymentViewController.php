@@ -48,26 +48,26 @@ class PaymentViewController extends ControllerBase {
    *   A render array for the view.
    */
   public function view(GovUkPaymentInterface $govukpayment) {
-    // Load all revisions of this payment.
-    $storage = $this->entityTypeManager->getStorage('govukpayment');
-    $revision_ids = $storage->getQuery()
-      ->allRevisions()
-      ->condition('id', $govukpayment->id())
-      ->sort('revision_created', 'ASC')
+    // Load all payment events for this payment.
+    $event_storage = $this->entityTypeManager->getStorage('govukpayment_event');
+    $event_ids = $event_storage->getQuery()
+      ->condition('govukpayment_id', $govukpayment->id())
+      ->sort('event_timestamp', 'DESC')
       ->accessCheck(TRUE)
       ->execute();
 
-    $revision_ids = array_keys($revision_ids);
-
-    $revisions = [];
-    foreach ($revision_ids as $revision_id) {
-      /** @var \Drupal\Core\Entity\RevisionableStorageInterface $storage */
-      $revision = $storage->loadRevision($revision_id);
-      /** @var \Drupal\Core\Entity\RevisionableInterface $revision */
-      $revisions[] = [
-        'revision_created' => $revision->created->value,
-        'status' => $revision->status->value,
-      ];
+    $payment_events = [];
+    if (!empty($event_ids)) {
+      $events = $event_storage->loadMultiple($event_ids);
+      foreach ($events as $event) {
+        $payment_events[] = [
+          'event_timestamp' => $event->event_timestamp->value,
+          'status' => $event->status->value,
+          'event_type' => $event->event_type->value,
+          'source' => $event->source->value,
+          'is_current_state' => (bool) $event->is_current_state->value,
+        ];
+      }
     }
 
     // Prepare payment data for the template.
@@ -81,12 +81,12 @@ class PaymentViewController extends ControllerBase {
       'created' => $govukpayment->getCreatedTime(),
       'payment_id' => $govukpayment->getPaymentId(),
       'payment_for' => $govukpayment->getPaymentFor(),
-      'revisions' => $revisions,
     ];
 
     $build['payment'] = [
       '#theme' => 'govuk_payment_view',
       '#payment' => $payment_data,
+      '#payment_events' => $payment_events,
       '#govukpayment' => $govukpayment,
       '#cache' => [
         'tags' => $govukpayment->getCacheTags(),
