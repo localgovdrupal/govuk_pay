@@ -4,5 +4,6 @@ description: 'Provides a Webform element integrating with the GOV.UK Pay payment
 package: 'GOV.UK'
 core_version_requirement: ^9 || ^10
 dependencies:
+  - 'drupal:views'
   - 'govuk_pay:govuk_pay'
   - 'webform:webform'

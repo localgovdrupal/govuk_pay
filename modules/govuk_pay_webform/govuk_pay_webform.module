@@ -8,6 +8,9 @@
 use Drupal\Core\Field\BaseFieldDefinition;
 use Drupal\Core\Entity\EntityTypeInterface;
 
+// Include files with additional functionality.
+require_once __DIR__ . '/includes/views.inc';
+
 /**
  * Implements hook_theme().
  */
@@ -23,6 +26,10 @@ function govuk_pay_webform_theme($existing, $type, $theme, $path) {
         'payment_reference' => NULL,
         'confirmation_message' => NULL,
       ],
+    ],
+    'govuk_payment_view__webform' => [
+      'template' => 'govuk-payment-view--webform',
+      'base hook' => 'govuk_payment_view',
     ],
   ];
 }
@@ -85,5 +92,60 @@ function govuk_pay_webform_entity_base_field_info_alter(&$fields, EntityTypeInte
       ->setDisplayConfigurable('view', TRUE)
       ->setDisplayConfigurable('form', TRUE)
       ->setRevisionable(TRUE);
+  }
+}
+
+/**
+ * Implements hook_theme_suggestions_HOOK_alter().
+ */
+function govuk_pay_webform_theme_suggestions_govuk_payment_view_alter(array &$suggestions, array $variables) {
+  // Add the webform template suggestion.
+  $suggestions[] = 'govuk_payment_view__webform';
+}
+
+/**
+ * Implements hook_preprocess_HOOK().
+ */
+function govuk_pay_webform_preprocess_govuk_payment_view(array &$variables) {
+  $payment_entity = FALSE;
+
+  if (isset($variables['govukpayment'])) {
+    $payment_entity = $variables['govukpayment'];
+  }
+
+  // Add webform submission data if available.
+  if ($payment_entity && ($payment_entity->hasField('webform_id') || $payment_entity->hasField('submission_id'))) {
+    // Add the webform_id and submission_id to the template variables.
+    if ($payment_entity->hasField('webform_id') && !$payment_entity->get('webform_id')->isEmpty()) {
+      $webform = $payment_entity->get('webform_id')->entity;
+      $variables['payment']['webform_id'] = [
+        'value' => TRUE,
+        'target_id' => $payment_entity->get('webform_id')->target_id,
+        'entity' => $webform,
+      ];
+    }
+
+    if ($payment_entity->hasField('submission_id') && !$payment_entity->get('submission_id')->isEmpty()) {
+      $variables['payment']['submission_id'] = [
+        'value' => TRUE,
+        'target_id' => $payment_entity->get('submission_id')->target_id,
+      ];
+    }
+
+    // Add permission check for displaying webform details.
+    $variables['show_webform_details'] = \Drupal::currentUser()->hasPermission('administer govukpayment entity');
+  }
+}
+
+/**
+ * Implements hook_modules_installed().
+ *
+ * Updates the govuk_pay_payments view when this module is installed.
+ */
+function govuk_pay_webform_modules_installed($modules) {
+  // Only run if this module is being installed.
+  if (in_array('govuk_pay_webform', $modules)) {
+    // Update the payments view with webform-specific elements.
+    govuk_pay_webform_update_payments_view();
   }
 }

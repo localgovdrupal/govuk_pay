@@ -1,0 +1,44 @@
+{{ attach_library('govuk_pay_webform/payment_view') }}
+
+  {% use "@govuk_pay/govuk-payment-view.html.twig" %}
+
+  {% block payment_basic_info %}
+    {{ parent() }}
+  {% endblock %}
+
+  {% block payment_revisions %}
+    {{ parent() }}
+  {% endblock %}
+
+{% block payment_additional_info %}
+  {% if show_webform_details and (payment.webform_id.value or payment.submission_id.value) %}
+    <div class="webform-fields">
+      <h3>{{ 'Webform Details'|t }}</h3>
+      
+      {% if payment.webform_id.value %}
+        <div class="payment-field">
+          <span class="field-label">{{ 'Webform'|t }}:</span>
+          <span class="field-value">
+            <a href="{{ path('entity.webform.canonical', {'webform': payment.webform_id.target_id}) }}">
+              {{ payment.webform_id.entity.label }}
+            </a>
+          </span>
+        </div>
+      {% endif %}
+      
+      {% if payment.submission_id.value and payment.webform_id.value %}
+        <div class="payment-field">
+          <span class="field-label">{{ 'Submission'|t }}:</span>
+          <span class="field-value">
+            <a href="{{ path('entity.webform_submission.canonical', {
+              'webform_submission': payment.submission_id.target_id,
+              'webform': payment.webform_id.target_id
+            }) }}">
+              {{ 'View submission #' ~ payment.submission_id.target_id }}
+            </a>
+          </span>
+        </div>
+      {% endif %}
+    </div>
+  {% endif %}
+{% endblock %}

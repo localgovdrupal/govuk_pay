@@ -5,3 +5,38 @@ govuk_pay.general_settings_form:
     _form: \Drupal\govuk_pay\Form\GovUkPayGeneralSettingsForm
   requirements:
     _permission: 'administer govuk pay'
+
+entity.govukpayment.canonical:
+  path: '/govuk-payment/{govukpayment}'
+  defaults:
+    _controller: '\Drupal\govuk_pay\Controller\PaymentViewController::view'
+    _title: 'Payment details'
+  requirements:
+    _permission: 'view govukpayment entities'
+    govukpayment: \d+
+
+entity.govukpayment.edit_form:
+  path: '/govuk-payment/{govukpayment}/edit'
+  defaults:
+    _entity_form: 'govukpayment.default'
+    _title: 'Edit payment'
+  requirements:
+    _permission: 'edit govukpayment entities'
+    govukpayment: \d+
+
+entity.govukpayment.delete_form:
+  path: '/govuk-payment/{govukpayment}/delete'
+  defaults:
+    _entity_form: 'govukpayment.delete'
+    _title: 'Delete payment'
+  requirements:
+    _permission: 'delete govukpayment entities'
+    govukpayment: \d+
+
+govuk_pay.payment_collection:
+  path: '/admin/govuk_pay/payments'
+  defaults:
+    _title: 'GOV.UK Payments'
+    _controller: '\Drupal\govuk_pay\Controller\PaymentListController::listPayments'
+  requirements:
+    _permission: 'administer govukpayment entity'

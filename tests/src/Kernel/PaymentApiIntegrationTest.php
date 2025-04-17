@@ -97,7 +97,6 @@ class PaymentApiIntegrationTest extends KernelTestBase {
     $this->installEntitySchema('user');
     $this->installEntitySchema('govukpayment');
     $this->installSchema('user', ['users_data']);
-    $this->installConfig(['govuk_pay']);
 
     $this->entityTypeManager = $this->container->get('entity_type.manager');
 

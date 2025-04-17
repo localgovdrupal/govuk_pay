@@ -1,0 +1,35 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the GOV.UK Pay module.
+ */
+
+use Symfony\Component\Yaml\Yaml;
+use Drupal\views\Entity\View;
+
+/**
+ * Implements hook_install().
+ */
+function govuk_pay_install() {
+  // Only create if the govuk_pay_payments view doesn't
+  // exist and views is enabled.
+  if (!View::load('govuk_pay_payments') && \Drupal::moduleHandler()->moduleExists('views')) {
+    // Get the path to the view configuration file.
+    $config_path = \Drupal::service('extension.list.module')->getPath('govuk_pay') . '/config/optional/views.view.govuk_pay_payments.yml';
+    $data = Yaml::parse(file_get_contents($config_path));
+
+    // Create the view configuration.
+    \Drupal::configFactory()->getEditable('views.view.govuk_pay_payments')->setData($data)->save(TRUE);
+
+    \Drupal::messenger()->addStatus(t('The GOV.UK Pay payments view has been created.'));
+  }
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function govuk_pay_uninstall() {
+  // Delete the view configuration when the module is uninstalled.
+  \Drupal::configFactory()->getEditable('views.view.govuk_pay_payments')->delete();
+}
