@@ -97,7 +97,7 @@ class WebhookController extends ControllerBase {
       $data = json_decode($content, TRUE);
 
       // Validate the webhook data.
-      if (!$this->validateWebhookData($data)) {
+      if (!$this->validateWebhookData($data, $request)) {
         $this->logger->error('Invalid webhook data received: @data', ['@data' => $content]);
         return new Response('Invalid webhook data', 400);
       }
@@ -122,11 +122,13 @@ class WebhookController extends ControllerBase {
    *
    * @param array|null $data
    *   The webhook data.
+   * @param \Symfony\Component\HttpFoundation\Request|null $request
+   *   The request object.
    *
    * @return bool
    *   TRUE if the data is valid, FALSE otherwise.
    */
-  protected function validateWebhookData($data) {
+  protected function validateWebhookData($data, ?Request $request = NULL) {
     // Check if the data is valid JSON.
     if ($data === NULL) {
       return FALSE;
@@ -139,6 +141,46 @@ class WebhookController extends ControllerBase {
 
     if (empty($data['resource_id'])) {
       return FALSE;
+    }
+
+    // Validate the webhook signature if the request object is provided.
+    if ($request !== NULL) {
+      // Get the Pay-Signature header.
+      $paySignatureHeader = $request->headers->get('Pay-Signature');
+      if (empty($paySignatureHeader)) {
+        $this->logger->error('Missing Pay-Signature header in webhook request');
+        return FALSE;
+      }
+
+      // Get the webhook signing secret from configuration.
+      $config = $this->config('govuk_pay.settings');
+      $webhookSigningSecret = $config->get('gov_pay__webhook_signing_secret');
+
+      // If the webhook signing secret is not configured, log a warning and skip validation.
+      if (empty($webhookSigningSecret)) {
+        $this->logger->warning(
+          'Webhook signing secret not configured. Skipping signature validation.'
+        );
+        return TRUE;
+      }
+
+      // Get the request content.
+      $webhookMessageBody = $request->getContent();
+
+      // Generate the HMAC.
+      $hmac = hash_hmac('sha256', $webhookMessageBody, $webhookSigningSecret);
+
+      // Compare the generated HMAC with the Pay-Signature header.
+      if ($hmac !== $paySignatureHeader) {
+        $this->logger->error(
+          'Invalid webhook signature. Expected @expected, got @actual.',
+          [
+            '@expected' => $hmac,
+            '@actual' => $paySignatureHeader,
+          ]
+        );
+        return FALSE;
+      }
     }
 
     return TRUE;
