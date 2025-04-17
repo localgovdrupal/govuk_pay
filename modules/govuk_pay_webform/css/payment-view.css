@@ -20,25 +20,25 @@
   border-top: 1px solid #ddd;
 }
 
-.payment-revisions {
+.payment-events {
   margin-top: 2em;
   padding-top: 1em;
   border-top: 1px solid #ddd;
 }
 
-.payment-revisions table {
+.payment-events table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 1em;
 }
 
-.payment-revisions th,
-.payment-revisions td {
+.payment-events th,
+.payment-events td {
   padding: 0.5em;
   border-bottom: 1px solid #eee;
   text-align: left;
 }
 
-.payment-revisions th {
+.payment-events th {
   font-weight: bold;
 }

@@ -2,14 +2,14 @@
 
 namespace Drupal\govuk_pay\Controller;
 
-use Drupal\Core\Controller\ControllerBase;
-use Drupal\Core\Entity\EntityTypeManagerInterface;
-use Drupal\Core\Logger\LoggerChannelFactoryInterface;
-use Drupal\govuk_pay\ApiServiceInterface;
-use Drupal\govuk_pay\PaymentEventService;
-use Symfony\Component\DependencyInjection\ContainerInterface;
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\DependencyInjection\ContainerInterface;
+use Drupal\govuk_pay\PaymentEventService;
+use Drupal\govuk_pay\ApiServiceInterface;
+use Drupal\Core\Logger\LoggerChannelFactoryInterface;
+use Drupal\Core\Entity\EntityTypeManagerInterface;
+use Drupal\Core\Controller\ControllerBase;
 
 /**
  * Controller for handling GOV.UK Pay webhooks.
@@ -60,7 +60,7 @@ class WebhookController extends ControllerBase {
     EntityTypeManagerInterface $entity_type_manager,
     LoggerChannelFactoryInterface $logger_factory,
     ApiServiceInterface $api_service,
-    PaymentEventService $payment_event_service
+    PaymentEventService $payment_event_service,
   ) {
     $this->entityTypeManager = $entity_type_manager;
     $this->loggerFactory = $logger_factory;

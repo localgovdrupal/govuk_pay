@@ -52,7 +52,7 @@ class PaymentViewController extends ControllerBase {
     $event_storage = $this->entityTypeManager->getStorage('govukpayment_event');
     $event_ids = $event_storage->getQuery()
       ->condition('govukpayment_id', $govukpayment->id())
-      ->sort('event_timestamp', 'DESC')
+      ->sort('event_timestamp', 'ASC')
       ->accessCheck(TRUE)
       ->execute();
 

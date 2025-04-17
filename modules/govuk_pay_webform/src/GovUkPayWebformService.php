@@ -5,6 +5,7 @@ namespace Drupal\govuk_pay_webform;
 use Symfony\Component\HttpFoundation\RequestStack;
 use GuzzleHttp\Psr7\Uri;
 use Drupal\webform\WebformSubmissionInterface;
+use Drupal\govuk_pay\PaymentEventService;
 use Drupal\govuk_pay\Entity\GovUkPayment;
 use Drupal\govuk_pay\ApiService;
 use Drupal\Core\Utility\Token;
@@ -92,6 +93,13 @@ class GovUkPayWebformService {
   protected $currentUser;
 
   /**
+   * The payment event service.
+   *
+   * @var \Drupal\govuk_pay\PaymentEventService
+   */
+  protected $paymentEventService;
+
+  /**
    * Constructs a new GovUkPayWebformService.
    *
    * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
@@ -112,6 +120,8 @@ class GovUkPayWebformService {
    *   The token service.
    * @param \Drupal\Core\Session\AccountProxyInterface $current_user
    *   The current user.
+   * @param \Drupal\govuk_pay\PaymentEventService $payment_event_service
+   *   The payment event service.
    */
   public function __construct(
     ConfigFactoryInterface $config_factory,
@@ -123,6 +133,7 @@ class GovUkPayWebformService {
     PrivateTempStoreFactory $temp_store_factory,
     Token $token,
     AccountProxyInterface $current_user,
+    PaymentEventService $payment_event_service,
   ) {
     $this->configFactory = $config_factory;
     $this->apiService = $api_service;
@@ -134,6 +145,7 @@ class GovUkPayWebformService {
     $this->tempStore = $temp_store_factory->get('govuk_pay_webform');
     $this->token = $token;
     $this->currentUser = $current_user;
+    $this->paymentEventService = $payment_event_service;
   }
 
   /**
@@ -746,6 +758,23 @@ class GovUkPayWebformService {
     }
 
     $payment->save();
+
+    // Create an initial payment event for this payment.
+    $this->paymentEventService->recordPaymentEvent(
+      $payment_response->getPaymentId(),
+      $payment_response->getState()->getStatus(),
+      'payment.created',
+      'api',
+      [
+        'payment_id' => $payment_response->getPaymentId(),
+        'status' => $payment_response->getState()->getStatus(),
+        'amount' => $amount,
+        'description' => $payment_for,
+        'reference' => $payment_reference,
+      ],
+      time()
+    );
+
     return $payment;
   }
 
