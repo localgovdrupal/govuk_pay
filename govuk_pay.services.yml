@@ -9,4 +9,4 @@ services:
     
   govuk_pay.payment_event_service:
     class: Drupal\govuk_pay\PaymentEventService
-    arguments: ['@entity_type.manager', '@logger.factory']
+    arguments: ['@entity_type.manager', '@logger.factory', '@date.formatter', '@config.factory']

@@ -13,6 +13,7 @@ use Drupal\Core\Messenger\MessengerInterface;
 use Drupal\Core\Entity\EntityTypeManagerInterface;
 use Drupal\Core\Controller\ControllerBase;
 use Drupal\Component\Render\FormattableMarkup;
+use Drupal\Core\Config\ConfigFactoryInterface;
 
 /**
  * Page controller for displaying GOV.UK Pay content on behalf of Webform.
@@ -69,6 +70,20 @@ class GovPayWebformController extends ControllerBase {
   protected $token;
 
   /**
+   * The config factory.
+   *
+   * @var \Drupal\Core\Config\ConfigFactoryInterface
+   */
+  protected $configFactory;
+
+  /**
+   * Whether verbose logging is enabled.
+   *
+   * @var bool
+   */
+  protected $verboseLogging;
+
+  /**
    * Constructs a new GovPayWebformController object.
    *
    * @param \Drupal\Core\Entity\EntityTypeManagerInterface $entity_type_manager
@@ -85,6 +100,8 @@ class GovPayWebformController extends ControllerBase {
    *   The logger.
    * @param \Drupal\Core\Utility\Token $token
    *   The token service.
+   * @param \Drupal\Core\Config\ConfigFactoryInterface $config_factory
+   *   The config factory.
    */
   public function __construct(
     EntityTypeManagerInterface $entity_type_manager,
@@ -94,6 +111,7 @@ class GovPayWebformController extends ControllerBase {
     MessengerInterface $messenger,
     LoggerInterface $logger,
     Token $token,
+    ConfigFactoryInterface $config_factory,
   ) {
     $this->entityTypeManager = $entity_type_manager;
     $this->paymentService = $payment_service;
@@ -102,6 +120,8 @@ class GovPayWebformController extends ControllerBase {
     $this->messenger = $messenger;
     $this->logger = $logger;
     $this->token = $token;
+    $this->configFactory = $config_factory;
+    $this->verboseLogging = (bool) $this->configFactory->get('govuk_pay.settings')->get('verbose_logging');
   }
 
   /**
@@ -115,7 +135,8 @@ class GovPayWebformController extends ControllerBase {
     $container->get('request_stack'),
     $container->get('messenger'),
     $container->get('logger.factory')->get('govuk_pay_webform'),
-    $container->get('token')
+    $container->get('token'),
+    $container->get('config.factory'),
     );
   }
 
@@ -237,11 +258,15 @@ class GovPayWebformController extends ControllerBase {
                 }
                 $payment_entity->set('status', $payment_details['status']);
                 $payment_entity->save();
-                $this->logger->info('Payment status updated for UUID: @uuid from @old_status to @new_status', [
-                  '@uuid' => $uuid,
-                  '@old_status' => $payment_entity->get('status')->value,
-                  '@new_status' => $payment_details['status'],
-                ]);
+
+                // Log the update if verbose logging is enabled.
+                if ($this->verboseLogging) {
+                  $this->logger->info('Payment status updated for UUID: @uuid from @old_status to @new_status', [
+                    '@uuid' => $uuid,
+                    '@old_status' => $payment_entity->get('status')->value,
+                    '@new_status' => $payment_details['status'],
+                  ]);
+                }
 
                 // Create a payment event for this status update.
                 $this->paymentEventService->recordPaymentEvent(

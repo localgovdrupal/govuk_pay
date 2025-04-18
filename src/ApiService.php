@@ -48,6 +48,13 @@ class ApiService implements ApiServiceInterface {
   protected $logger;
 
   /**
+   * Whether verbose logging is enabled.
+   *
+   * @var bool
+   */
+  protected $verboseLogging;
+
+  /**
    * Constructs a new ApiService object.
    *
    * @param \GuzzleHttp\ClientInterface $http_client
@@ -69,6 +76,7 @@ class ApiService implements ApiServiceInterface {
     $this->configFactory = $config_factory;
     $this->payClientService = $pay_client_service;
     $this->logger = $logger_factory->get('govuk_pay');
+    $this->verboseLogging = (bool) $this->configFactory->get('govuk_pay.settings')->get('verbose_logging');
   }
 
   /**
@@ -101,15 +109,9 @@ class ApiService implements ApiServiceInterface {
   public function createPayment($amount, string $reference, string $description, Uri $return_url, array $metadata = [], ?string $email = NULL, ?array $prefilled_cardholder_details = NULL): CreatePaymentResult {
     try {
       // Validate input parameters.
-      if (!is_numeric($amount) || $amount <= 0) {
-        throw new \InvalidArgumentException('Payment amount must be a positive number.');
-      }
-      if (empty($reference)) {
-        throw new \InvalidArgumentException('Payment reference cannot be empty.');
-      }
-      if (empty($description)) {
-        throw new \InvalidArgumentException('Payment description cannot be empty.');
-      }
+      $this->validatePositiveNumber($amount, 'Payment amount');
+      $this->validateNonEmptyString($reference, 'Payment reference');
+      $this->validateNonEmptyString($description, 'Payment description');
 
       // Ensure amount is an integer.
       $amount = (int) $amount;
@@ -131,23 +133,32 @@ class ApiService implements ApiServiceInterface {
       $payment_request->setDescription($description);
       $payment_request->setReturnUrl((string) $return_url);
 
+      // Add optional metadata if provided.
       if (!empty($metadata)) {
         $payment_request->setMetadata($metadata);
       }
 
-      // Add email if provided.
+      // Add optional email if provided.
       if (!empty($email)) {
         $payment_request->setEmail($email);
       }
 
-      // Add prefilled cardholder details if provided.
+      // Add optional prefilled cardholder details if provided.
       if (!empty($prefilled_cardholder_details)) {
         $payment_request->setPrefilledCardholderDetails($prefilled_cardholder_details);
       }
 
       // Create the payment.
       $result = $cardPaymentsApi->createAPayment($payment_request);
-      $this->logger->info('Created payment with ID: @id', ['@id' => $result->getPaymentId()]);
+
+      // Log the successful creation if verbose logging is enabled.
+      if ($this->verboseLogging) {
+        $this->logger->info('Created payment with ID: @id, amount: @amount', [
+          '@id' => $result->getPaymentId(),
+          '@amount' => $amount,
+        ]);
+      }
+
       return $result;
     }
     catch (\Exception $e) {
@@ -172,9 +183,7 @@ class ApiService implements ApiServiceInterface {
    */
   public function getPayment(string $payment_id): PaymentWithAllLinks {
     try {
-      if (empty($payment_id)) {
-        throw new \InvalidArgumentException('Payment ID cannot be empty.');
-      }
+      $this->validateNonEmptyString($payment_id, 'Payment ID');
 
       // Use the service to create an API client.
       $cardPaymentsApi = $this->payClientService->createCardPaymentsApi();
@@ -184,11 +193,7 @@ class ApiService implements ApiServiceInterface {
       return $result;
     }
     catch (\Exception $e) {
-      $this->logger->error('Failed to get payment @id: @message', [
-        '@id' => $payment_id,
-        '@message' => $e->getMessage(),
-      ]);
-      throw new \RuntimeException('Failed to get payment: ' . $e->getMessage(), 0, $e);
+      return $this->handleApiException($e, 'Failed to get payment');
     }
   }
 
@@ -208,23 +213,17 @@ class ApiService implements ApiServiceInterface {
    */
   public function getPaymentEvents(string $payment_id): PaymentEvents {
     try {
-      if (empty($payment_id)) {
-        throw new \InvalidArgumentException('Payment ID cannot be empty.');
-      }
+      $this->validateNonEmptyString($payment_id, 'Payment ID');
 
       // Use the service to create an API client.
       $cardPaymentsApi = $this->payClientService->createCardPaymentsApi();
 
       $result = $cardPaymentsApi->getEventsForAPayment($payment_id);
-      $this->logger->debug('Retrieved events for payment with ID: @id', ['@id' => $payment_id]);
+      $this->logger->debug('Retrieved payment events for ID: @id', ['@id' => $payment_id]);
       return $result;
     }
     catch (\Exception $e) {
-      $this->logger->error('Failed to get payment events for @id: @message', [
-        '@id' => $payment_id,
-        '@message' => $e->getMessage(),
-      ]);
-      throw new \RuntimeException('Failed to get payment events: ' . $e->getMessage(), 0, $e);
+      return $this->handleApiException($e, 'Failed to get payment events');
     }
   }
 
@@ -241,22 +240,20 @@ class ApiService implements ApiServiceInterface {
    */
   public function cancelPayment(string $payment_id): void {
     try {
-      if (empty($payment_id)) {
-        throw new \InvalidArgumentException('Payment ID cannot be empty.');
-      }
+      $this->validateNonEmptyString($payment_id, 'Payment ID');
 
       // Use the service to create an API client.
       $cardPaymentsApi = $this->payClientService->createCardPaymentsApi();
 
       $cardPaymentsApi->cancelAPayment($payment_id);
-      $this->logger->info('Cancelled payment with ID: @id', ['@id' => $payment_id]);
+
+      // Log the successful cancellation if verbose logging is enabled.
+      if ($this->verboseLogging) {
+        $this->logger->info('Cancelled payment with ID: @id', ['@id' => $payment_id]);
+      }
     }
     catch (\Exception $e) {
-      $this->logger->error('Failed to cancel payment @id: @message', [
-        '@id' => $payment_id,
-        '@message' => $e->getMessage(),
-      ]);
-      throw new \RuntimeException('Failed to cancel payment: ' . $e->getMessage(), 0, $e);
+      $this->handleApiException($e, 'Failed to cancel payment');
     }
   }
 
@@ -268,7 +265,7 @@ class ApiService implements ApiServiceInterface {
    * @param int|string $amount
    *   The refund amount in pence. Will be converted to integer.
    * @param string $refund_amount_available
-   *   The available refund amount in pence.
+   *   The refund amount available in pence.
    *
    * @return \Swagger\Client\Model\Refund
    *   The refund.
@@ -280,13 +277,8 @@ class ApiService implements ApiServiceInterface {
    */
   public function refundPayment(string $payment_id, $amount, string $refund_amount_available): Refund {
     try {
-      if (empty($payment_id)) {
-        throw new \InvalidArgumentException('Payment ID cannot be empty.');
-      }
-
-      if (!is_numeric($amount) || $amount <= 0) {
-        throw new \InvalidArgumentException('Refund amount must be a positive number.');
-      }
+      $this->validateNonEmptyString($payment_id, 'Payment ID');
+      $this->validatePositiveNumber($amount, 'Refund amount');
 
       // Ensure amount is an integer.
       $amount = (int) $amount;
@@ -299,18 +291,19 @@ class ApiService implements ApiServiceInterface {
       $refund_request->setRefundAmountAvailable($refund_amount_available);
 
       $result = $refundingApi->submitARefundForAPayment($payment_id, $refund_request);
-      $this->logger->info('Refunded payment with ID: @id, amount: @amount', [
-        '@id' => $payment_id,
-        '@amount' => $amount,
-      ]);
+
+      // Log the successful refund if verbose logging is enabled.
+      if ($this->verboseLogging) {
+        $this->logger->info('Refunded payment with ID: @id, amount: @amount', [
+          '@id' => $payment_id,
+          '@amount' => $amount,
+        ]);
+      }
+
       return $result;
     }
     catch (\Exception $e) {
-      $this->logger->error('Failed to refund payment @id: @message', [
-        '@id' => $payment_id,
-        '@message' => $e->getMessage(),
-      ]);
-      throw new \RuntimeException('Failed to refund payment: ' . $e->getMessage(), 0, $e);
+      return $this->handleApiException($e, 'Failed to refund payment');
     }
   }
 
@@ -332,13 +325,8 @@ class ApiService implements ApiServiceInterface {
    */
   public function getRefund(string $payment_id, string $refund_id): Refund {
     try {
-      if (empty($payment_id)) {
-        throw new \InvalidArgumentException('Payment ID cannot be empty.');
-      }
-
-      if (empty($refund_id)) {
-        throw new \InvalidArgumentException('Refund ID cannot be empty.');
-      }
+      $this->validateNonEmptyString($payment_id, 'Payment ID');
+      $this->validateNonEmptyString($refund_id, 'Refund ID');
 
       // Use the service to create an API client.
       $refundingApi = $this->payClientService->createRefundingCardPaymentsApi();
@@ -351,12 +339,10 @@ class ApiService implements ApiServiceInterface {
       return $result;
     }
     catch (\Exception $e) {
-      $this->logger->error('Failed to get refund @refund_id for payment @id: @message', [
+      return $this->handleApiException($e, 'Failed to get refund', [
         '@refund_id' => $refund_id,
         '@id' => $payment_id,
-        '@message' => $e->getMessage(),
       ]);
-      throw new \RuntimeException('Failed to get refund: ' . $e->getMessage(), 0, $e);
     }
   }
 
@@ -376,9 +362,7 @@ class ApiService implements ApiServiceInterface {
    */
   public function getRefunds(string $payment_id): RefundForSearchResult {
     try {
-      if (empty($payment_id)) {
-        throw new \InvalidArgumentException('Payment ID cannot be empty.');
-      }
+      $this->validateNonEmptyString($payment_id, 'Payment ID');
 
       // Use the service to create an API client.
       $refundingApi = $this->payClientService->createRefundingCardPaymentsApi();
@@ -388,11 +372,7 @@ class ApiService implements ApiServiceInterface {
       return $result;
     }
     catch (\Exception $e) {
-      $this->logger->error('Failed to get refunds for payment @id: @message', [
-        '@id' => $payment_id,
-        '@message' => $e->getMessage(),
-      ]);
-      throw new \RuntimeException('Failed to get refunds: ' . $e->getMessage(), 0, $e);
+      return $this->handleApiException($e, 'Failed to get refunds', ['@id' => $payment_id]);
     }
   }
 
@@ -401,6 +381,62 @@ class ApiService implements ApiServiceInterface {
    */
   public function getClient() {
     return $this->payClientService->createCardPaymentsApi();
+  }
+
+  /**
+   * Validates that a value is a non-empty string.
+   *
+   * @param string $value
+   *   The value to validate.
+   * @param string $name
+   *   The name of the parameter for error messages.
+   *
+   * @throws \InvalidArgumentException
+   *   If the value is empty.
+   */
+  protected function validateNonEmptyString(string $value, string $name): void {
+    if (empty($value)) {
+      throw new \InvalidArgumentException($name . ' cannot be empty.');
+    }
+  }
+
+  /**
+   * Validates that a value is a positive number.
+   *
+   * @param mixed $value
+   *   The value to validate.
+   * @param string $name
+   *   The name of the parameter for error messages.
+   *
+   * @throws \InvalidArgumentException
+   *   If the value is not a positive number.
+   */
+  protected function validatePositiveNumber($value, string $name): void {
+    if (!is_numeric($value) || $value <= 0) {
+      throw new \InvalidArgumentException($name . ' must be a positive number.');
+    }
+  }
+
+  /**
+   * Handles API exceptions consistently.
+   *
+   * @param \Exception $e
+   *   The exception to handle.
+   * @param string $message
+   *   The error message prefix.
+   * @param array $log_context
+   *   Additional context for logging.
+   *
+   * @return mixed
+   *   Never returns as it always throws an exception.
+   *
+   * @throws \RuntimeException
+   *   Always thrown with the formatted error message.
+   */
+  protected function handleApiException(\Exception $e, string $message, array $log_context = []): mixed {
+    $context = $log_context + ['@message' => $e->getMessage()];
+    $this->logger->error($message . ': @message', $context);
+    throw new \RuntimeException($message . ': ' . $e->getMessage(), 0, $e);
   }
 
 }

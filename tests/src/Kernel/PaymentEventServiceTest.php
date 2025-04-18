@@ -4,6 +4,7 @@ namespace Drupal\Tests\govuk_pay\Kernel;
 
 use Drupal\govuk_pay\Entity\GovUkPayment;
 use Drupal\KernelTests\KernelTestBase;
+use Drupal\Core\Datetime\DateFormatterInterface;
 
 /**
  * Tests the PaymentEventService.
@@ -51,6 +52,13 @@ class PaymentEventServiceTest extends KernelTestBase {
   protected $events = [];
 
   /**
+   * The date formatter service.
+   *
+   * @var \Drupal\Core\Datetime\DateFormatterInterface
+   */
+  protected $dateFormatter;
+
+  /**
    * {@inheritdoc}
    */
   protected function setUp(): void {
@@ -62,6 +70,13 @@ class PaymentEventServiceTest extends KernelTestBase {
     $this->installConfig(['govuk_pay']);
 
     $this->entityTypeManager = $this->container->get('entity_type.manager');
+
+    // Create a simple date formatter implementation if needed.
+    if (!$this->container->has('date.formatter')) {
+      $this->dateFormatter = new TestDateFormatter();
+      $this->container->set('date.formatter', $this->dateFormatter);
+    }
+
     $this->paymentEventService = $this->container->get('govuk_pay.payment_event_service');
 
     // Create a test payment entity.
@@ -235,6 +250,58 @@ class PaymentEventServiceTest extends KernelTestBase {
     $current_event = $event_storage->load(reset($current_event_ids));
     $this->assertEquals('success', $current_event->status->value, 'Current event still has the newer status.');
     $this->assertEquals($current_time, $current_event->event_timestamp->value, 'Current event has the newer timestamp.');
+  }
+
+}
+
+/**
+ * Simple date formatter implementation for testing.
+ */
+class TestDateFormatter implements DateFormatterInterface {
+
+  /**
+   * {@inheritdoc}
+   */
+  public function format($timestamp, $type = 'medium', $format = '', $timezone = NULL, $langcode = NULL) {
+    if ($type === 'custom' && $format === 'Y-m-d\TH:i:s\Z') {
+      return date('Y-m-d\TH:i:s\Z', $timestamp);
+    }
+    return date('Y-m-d H:i:s', $timestamp);
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function formatInterval($interval, $granularity = 2, $langcode = NULL) {
+    return '';
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function formatTimeDiffUntil($timestamp, $options = []) {
+    return '';
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function formatTimeDiffSince($timestamp, $options = []) {
+    return '';
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getSampleDateFormats($langcode = NULL, $timestamp = NULL, $timezone = NULL) {
+    return [];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function formatDiff($from, $to, $options = []) {
+    return '';
   }
 
 }

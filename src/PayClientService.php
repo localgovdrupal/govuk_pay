@@ -66,14 +66,10 @@ class PayClientService {
    *   Thrown when the API key is not configured or client creation fails.
    */
   public function createCardPaymentsApi(): CardPaymentsApi {
-    try {
-      $config = $this->createConfiguration();
-      return new CardPaymentsApi($this->httpClient, $config);
-    }
-    catch (\Exception $e) {
-      $this->logger->error('Failed to create CardPaymentsApi: @message', ['@message' => $e->getMessage()]);
-      throw new \RuntimeException('Failed to create GOV.UK Pay API client: ' . $e->getMessage(), 0, $e);
-    }
+    return $this->createApiClient(
+      CardPaymentsApi::class,
+      'Failed to create GOV.UK Pay API client'
+    );
   }
 
   /**
@@ -86,14 +82,10 @@ class PayClientService {
    *   Thrown when the API key is not configured or client creation fails.
    */
   public function createRefundingCardPaymentsApi(): RefundingCardPaymentsApi {
-    try {
-      $config = $this->createConfiguration();
-      return new RefundingCardPaymentsApi($this->httpClient, $config);
-    }
-    catch (\Exception $e) {
-      $this->logger->error('Failed to create RefundingCardPaymentsApi: @message', ['@message' => $e->getMessage()]);
-      throw new \RuntimeException('Failed to create GOV.UK Pay refunding API client: ' . $e->getMessage(), 0, $e);
-    }
+    return $this->createApiClient(
+      RefundingCardPaymentsApi::class,
+      'Failed to create GOV.UK Pay refunding API client'
+    );
   }
 
   /**
@@ -106,13 +98,39 @@ class PayClientService {
    *   Thrown when the API key is not configured or client creation fails.
    */
   public function createAgreementsApi(): AgreementsApi {
+    return $this->createApiClient(
+      AgreementsApi::class,
+      'Failed to create GOV.UK Pay agreements API client'
+    );
+  }
+
+  /**
+   * Creates an API client of the specified class.
+   *
+   * @param string $api_class
+   *   The fully qualified class name of the API client to create.
+   * @param string $error_message
+   *   The error message to use if client creation fails.
+   *
+   * @return mixed
+   *   The created API client instance.
+   *
+   * @throws \RuntimeException
+   *   Thrown when the API key is not configured or client creation fails.
+   */
+  protected function createApiClient(string $api_class, string $error_message) {
     try {
       $config = $this->createConfiguration();
-      return new AgreementsApi($this->httpClient, $config);
+      return new $api_class($this->httpClient, $config);
     }
     catch (\Exception $e) {
-      $this->logger->error('Failed to create AgreementsApi: @message', ['@message' => $e->getMessage()]);
-      throw new \RuntimeException('Failed to create GOV.UK Pay agreements API client: ' . $e->getMessage(), 0, $e);
+      $class_parts = explode('\\', $api_class);
+      $class_name = end($class_parts);
+      $this->logger->error('Failed to create @api: @message', [
+        '@api' => $class_name,
+        '@message' => $e->getMessage(),
+      ]);
+      throw new \RuntimeException($error_message . ': ' . $e->getMessage(), 0, $e);
     }
   }
 

@@ -2,7 +2,6 @@
 
 namespace Drupal\Tests\govuk_pay_webform\Kernel;
 
-use Drupal\Core\TempStore\PrivateTempStore;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Request;
@@ -12,6 +11,7 @@ use Swagger\Client\Model\Link;
 use Swagger\Client\Model\CreatePaymentResult;
 use Psr\Log\LoggerInterface;
 use Drupal\govuk_pay_webform\GovUkPayWebformService;
+use Drupal\Core\TempStore\PrivateTempStore;
 use Drupal\Core\Routing\TrustedRedirectResponse;
 
 /**
@@ -152,6 +152,10 @@ class GovUkPayWebformServiceTest extends GovUkPayWebformTestBase {
   public function testCreatePaymentEntity() {
     // Set a submission ID directly instead of saving to the database.
     $this->webformSubmission->set('sid', 12345);
+
+    // Install the necessary schema for the govukpayment entity.
+    $this->installEntitySchema('govukpayment');
+    $this->installEntitySchema('govukpayment_event');
 
     // Mock successful payment creation response.
     $payment_id = 'pay_' . $this->randomMachineName();

@@ -6,6 +6,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Drupal\govuk_pay\Entity\GovUkPayment;
 use Drupal\govuk_pay\Controller\WebhookController;
 use Drupal\KernelTests\KernelTestBase;
+use Drupal\Tests\govuk_pay\Kernel\TestDateFormatter;
 
 /**
  * Tests the WebhookController with real entities and database operations.
@@ -53,6 +54,13 @@ class WebhookControllerKernelTest extends KernelTestBase {
   protected $paymentId;
 
   /**
+   * The date formatter service.
+   *
+   * @var \Drupal\Core\Datetime\DateFormatterInterface
+   */
+  protected $dateFormatter;
+
+  /**
    * {@inheritdoc}
    */
   protected function setUp(): void {
@@ -66,6 +74,12 @@ class WebhookControllerKernelTest extends KernelTestBase {
 
     // Get services.
     $this->entityTypeManager = $this->container->get('entity_type.manager');
+
+    // Create a simple date formatter implementation if needed.
+    if (!$this->container->has('date.formatter')) {
+      $this->dateFormatter = new TestDateFormatter();
+      $this->container->set('date.formatter', $this->dateFormatter);
+    }
 
     // Manually instantiate the webhook controller since it's not a registered
     // service.

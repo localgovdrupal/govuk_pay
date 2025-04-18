@@ -17,6 +17,7 @@ use Drupal\Tests\UnitTestCase;
 use Drupal\Core\Logger\LoggerChannelInterface;
 use Drupal\Core\Logger\LoggerChannelFactoryInterface;
 use Drupal\Core\Config\ConfigFactoryInterface;
+use Drupal\Core\Config\Config;
 
 /**
  * Unit tests for the ApiService class.
@@ -84,6 +85,14 @@ class ApiServiceTest extends UnitTestCase {
 
     $this->loggerFactory->get('govuk_pay')->willReturn($this->logger->reveal());
 
+    // Mock the config factory to return the verbose_logging setting.
+    // Mock the inner Config object.
+    $config = $this->prophesize(Config::class);
+    // Mock the second get() call to return FALSE for verbose_logging.
+    $config->get('verbose_logging')->willReturn(FALSE);
+    // Mock the first get() call to return the mocked Config object.
+    $this->configFactory->get('govuk_pay.settings')->willReturn($config->reveal());
+
     $this->apiService = new ApiService(
       $this->httpClient->reveal(),
       $this->configFactory->reveal(),
@@ -114,11 +123,6 @@ class ApiServiceTest extends UnitTestCase {
     $cardPaymentsApi->createAPayment(Argument::type(CreateCardPaymentRequest::class))
       ->willReturn($paymentResult->reveal());
 
-    // Log the payment creation.
-    $this->logger->info('Created payment with ID: @id', ['@id' => 'test-payment-id'])
-      ->shouldBeCalled();
-
-    // Call the method under test.
     $amount = 1000;
     $reference = 'test-reference';
     $description = 'Test payment';

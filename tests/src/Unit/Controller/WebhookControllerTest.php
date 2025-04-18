@@ -360,7 +360,7 @@ class WebhookControllerTest extends UnitTestCase {
     $this->logger->expects($this->once())
       ->method('warning')
       ->with(
-        'Webhook signing secret not configured. Skipping signature validation.'
+        'Webhook signing secret not configured.'
       );
 
     // Parse the webhook message body as JSON.
