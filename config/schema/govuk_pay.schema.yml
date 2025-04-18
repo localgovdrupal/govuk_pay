@@ -12,3 +12,7 @@ govuk_pay.settings:
       type: string
       label: 'GOV.UK Pay reference'
       description: 'The fallback reference sent to the GOV.UK Pay service.'
+    gov_pay__webhook_signing_secret:
+      type: string
+      label: 'GOV.UK Pay webhook signing secret'
+      description: 'The signing secret used to verify webhook messages from GOV.UK Pay.'
