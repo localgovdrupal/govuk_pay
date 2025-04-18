@@ -156,7 +156,8 @@ class WebhookController extends ControllerBase {
       $config = $this->config('govuk_pay.settings');
       $webhookSigningSecret = $config->get('gov_pay__webhook_signing_secret');
 
-      // If the webhook signing secret is not configured, log a warning and skip validation.
+      // If the webhook signing secret is not
+      // configured, log a warning and skip validation.
       if (empty($webhookSigningSecret)) {
         $this->logger->warning(
           'Webhook signing secret not configured. Skipping signature validation.'

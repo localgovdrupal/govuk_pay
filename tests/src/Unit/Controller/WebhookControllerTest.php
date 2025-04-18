@@ -104,7 +104,8 @@ class WebhookControllerTest extends UnitTestCase {
       ->with('govuk_pay.settings')
       ->willReturn($this->config);
 
-    // Create a partial mock of the webhook controller to test validateWebhookData.
+    // Create a partial mock of the webhook
+    // controller to test validateWebhookData.
     $this->webhookController = $this->getMockBuilder(WebhookController::class)
       ->setConstructorArgs([
         $this->entityTypeManager,
