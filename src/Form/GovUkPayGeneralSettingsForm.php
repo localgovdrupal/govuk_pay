@@ -51,6 +51,21 @@ class GovUkPayGeneralSettingsForm extends ConfigFormBase {
       '#description' => $this->t('The fallback payment reference assigned to GOV.UK Pay transactions if not set individually on the handler.'),
     ];
 
+    $form['settings']['gov_pay__webhook_signing_secret'] = [
+      '#title' => 'Webhook Signing Secret',
+      '#required' => FALSE,
+      '#type' => 'textfield',
+      '#default_value' => $config->get('gov_pay__webhook_signing_secret'),
+      '#description' => $this->t('The signing secret used to verify webhook messages from GOV.UK Pay. This can be found in the Webhooks settings page in the GOV.UK Pay admin tool.'),
+    ];
+
+    $form['settings']['verbose_logging'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Verbose logging'),
+      '#default_value' => $config->get('verbose_logging'),
+      '#description' => $this->t('Enable to increase the amount of info-level messages in the Drupal logs. Error messages will always be logged.'),
+    ];
+
     return parent::buildForm($form, $form_state);
   }
 
@@ -63,6 +78,8 @@ class GovUkPayGeneralSettingsForm extends ConfigFormBase {
     $config
       ->set('gov_pay__apikey', $form_state->getValue('gov_pay__apikey'))
       ->set('gov_pay__reference', $form_state->getValue('gov_pay__reference'))
+      ->set('gov_pay__webhook_signing_secret', $form_state->getValue('gov_pay__webhook_signing_secret'))
+      ->set('verbose_logging', $form_state->getValue('verbose_logging'))
       ->save();
 
     parent::submitForm($form, $form_state);

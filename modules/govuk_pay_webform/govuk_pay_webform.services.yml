@@ -11,12 +11,12 @@ services:
       - '@tempstore.private'
       - '@token'
       - '@current_user'
+      - '@govuk_pay.payment_event_service'
   govuk_pay_webform.access_checker:
     class: Drupal\govuk_pay_webform\Access\GovPayWebformAccess
     arguments: ['@current_user', '@tempstore.private']
     tags:
       - { name: access_check, applies_to: _govuk_pay_webform_access_check }
-      - '@token'
   govuk_pay_webform.redirect_subscriber:
     class: Drupal\govuk_pay_webform\EventSubscriber\GovUkPayRedirectSubscriber
     arguments: ['@tempstore.private', '@logger.factory']

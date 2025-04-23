@@ -10,6 +10,7 @@ use Prophecy\Argument;
 use Drupal\webform\WebformSubmissionInterface;
 use Drupal\webform\WebformInterface;
 use Drupal\govuk_pay_webform\GovUkPayWebformService;
+use Drupal\govuk_pay\PaymentEventService;
 use Drupal\govuk_pay\GovUkPaymentInterface;
 use Drupal\govuk_pay\ApiService;
 use Drupal\Tests\UnitTestCase;
@@ -112,6 +113,13 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
   protected $currentUser;
 
   /**
+   * The payment event service.
+   *
+   * @var \Prophecy\Prophecy\ObjectProphecy<\Drupal\govuk_pay\PaymentEventService>
+   */
+  protected $paymentEventService;
+
+  /**
    * The service under test.
    *
    * @var \Drupal\govuk_pay_webform\GovUkPayWebformService
@@ -134,6 +142,7 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
     $this->tempStore = $this->prophesize(PrivateTempStore::class);
     $this->token = $this->prophesize(Token::class);
     $this->currentUser = $this->prophesize(AccountProxyInterface::class);
+    $this->paymentEventService = $this->prophesize(PaymentEventService::class);
 
     $this->loggerFactory->get('govuk_pay_webform')->willReturn($this->logger->reveal());
     $this->tempStoreFactory->get('govuk_pay_webform')->willReturn($this->tempStore->reveal());
@@ -147,7 +156,8 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
       $this->loggerFactory->reveal(),
       $this->tempStoreFactory->reveal(),
       $this->token->reveal(),
-      $this->currentUser->reveal()
+      $this->currentUser->reveal(),
+      $this->paymentEventService->reveal()
     );
   }
 
@@ -179,6 +189,7 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
         $this->tempStoreFactory->reveal(),
         $this->token->reveal(),
         $this->currentUser->reveal(),
+        $this->paymentEventService->reveal(),
       ]);
 
     if (!empty($methodNames)) {
@@ -499,6 +510,7 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
         $this->tempStoreFactory->reveal(),
         $this->token->reveal(),
         $this->currentUser->reveal(),
+        $this->paymentEventService->reveal(),
       ])
       ->onlyMethods(['replaceTokens'])
       ->getMock();
@@ -583,14 +595,14 @@ class GovUkPayWebformServiceTest extends UnitTestCase {
    * @covers ::validatePaymentConfiguration
    */
   public function testValidatePaymentConfigurationMissingApiKey() {
-    // Create a mock config object with empty API key.
+    // Set up test data.
     $config = $this->prophesize(ImmutableConfig::class);
     $config->get('gov_pay__apikey')->willReturn('');
 
     // Configure the config factory to return our mock config.
     $this->configFactory->get('govuk_pay.settings')->willReturn($config->reveal());
 
-    // Create a service with necessary mocks.
+    // Create a service with mocked dependencies.
     $service = $this->createMockService([]);
 
     // Get the protected method.

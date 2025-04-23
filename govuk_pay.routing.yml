@@ -6,6 +6,17 @@ govuk_pay.general_settings_form:
   requirements:
     _permission: 'administer govuk pay'
 
+govuk_pay.webhook:
+  path: '/api/govuk-pay/webhook'
+  defaults:
+    _controller: '\Drupal\govuk_pay\Controller\WebhookController::handleWebhook'
+    _title: 'GOV.UK Pay Webhook'
+  requirements:
+    _access: 'TRUE'
+  methods: [POST]
+  options:
+    no_cache: TRUE
+
 entity.govukpayment.canonical:
   path: '/govuk-payment/{govukpayment}'
   defaults:

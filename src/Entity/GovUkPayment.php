@@ -212,6 +212,19 @@ class GovUkPayment extends RevisionableContentEntityBase implements GovUkPayment
       ->setDescription(t('The time that the entity was last edited.'))
       ->setRevisionable(TRUE);
 
+    // Add a field to store the latest event timestamp for chronological ordering.
+    $fields['latest_event_timestamp'] = BaseFieldDefinition::create('timestamp')
+      ->setLabel(t('Latest Event Timestamp'))
+      ->setDescription(t('The timestamp of the most recent event from GOV.UK Pay.'))
+      ->setDefaultValue(0)
+      ->setDisplayOptions('view', [
+        'label' => 'above',
+        'type' => 'timestamp',
+        'weight' => -3,
+      ])
+      ->setDisplayConfigurable('view', TRUE)
+      ->setRevisionable(TRUE);
+
     // Revision metadata fields.
     $fields['revision_created'] = BaseFieldDefinition::create('created')
       ->setLabel(t('Revision created'))
